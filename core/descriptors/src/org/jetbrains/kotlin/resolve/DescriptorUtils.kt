@@ -43,7 +43,6 @@ import org.jetbrains.kotlin.types.typeUtil.isAnyOrNullableAny
 import org.jetbrains.kotlin.types.typeUtil.makeNullable
 import org.jetbrains.kotlin.utils.DFS
 import org.jetbrains.kotlin.utils.SmartList
-import org.jetbrains.kotlin.utils.addToStdlib.safeAs
 
 private val RETENTION_PARAMETER_NAME = Name.identifier("value")
 
@@ -190,16 +189,11 @@ fun CallableDescriptor.getOwnerForEffectiveDispatchReceiverParameter(): Declarat
     return dispatchReceiverParameter?.containingDeclaration
 }
 
-/**
- * @return `true` iff the parameter has a default value, i.e. declares it or inherits by overriding a parameter which has a default value.
- */
-fun ValueParameterDescriptor.hasDefaultValue(): Boolean {
+fun ValueParameterDescriptor.declaresOrInheritsDefaultValue(): Boolean {
     return DFS.ifAny(
-            listOf(this),
-            DFS.Neighbors<ValueParameterDescriptor> { current ->
-                current.overriddenDescriptors.map(ValueParameterDescriptor::getOriginal)
-            },
-            ValueParameterDescriptor::declaresDefaultValue
+        listOf(this),
+        { current -> current.overriddenDescriptors.map(ValueParameterDescriptor::getOriginal) },
+        ValueParameterDescriptor::declaresDefaultValue
     )
 }
 
@@ -397,12 +391,6 @@ fun computeSealedSubclasses(sealedClass: ClassDescriptor): Collection<ClassDescr
     return result
 }
 
-fun ClassDescriptor.getNoArgsConstructor(): ClassConstructorDescriptor? =
-        constructors.find { it.valueParameters.isEmpty() }
-
-fun ClassDescriptor.getConstructorForEmptyArgumentsList(): List<ClassConstructorDescriptor> =
-        constructors.filter { it.valueParameters.all { it.hasDefaultValue() || it.varargElementType != null } }
-
 fun DeclarationDescriptor.isPublishedApi(): Boolean {
     val descriptor = if (this is CallableMemberDescriptor) DescriptorUtils.getDirectMember(this) else this
     return descriptor.annotations.hasAnnotation(KotlinBuiltIns.FQ_NAMES.publishedApi)
@@ -437,7 +425,8 @@ fun MemberDescriptor.isEffectivelyExternal(): Boolean {
     return containingClass != null && containingClass.isEffectivelyExternal()
 }
 
-fun isParameterOfAnnotation(parameterDescriptor: ParameterDescriptor): Boolean {
-    val constructedClass = parameterDescriptor.containingDeclaration.safeAs<ConstructorDescriptor>()?.constructedClass
-    return DescriptorUtils.isAnnotationClass(constructedClass)
-}
+fun isParameterOfAnnotation(parameterDescriptor: ParameterDescriptor): Boolean =
+    parameterDescriptor.containingDeclaration.isAnnotationConstructor()
+
+fun DeclarationDescriptor.isAnnotationConstructor(): Boolean =
+    this is ConstructorDescriptor && DescriptorUtils.isAnnotationClass(this.constructedClass)

@@ -4,6 +4,7 @@ import org.jetbrains.kotlin.gradle.util.allKotlinFiles
 import org.jetbrains.kotlin.gradle.util.getFileByName
 import org.jetbrains.kotlin.gradle.util.getFilesByNames
 import org.jetbrains.kotlin.gradle.util.modify
+import org.jetbrains.kotlin.test.KotlinTestUtils
 import org.junit.Test
 import java.io.File
 
@@ -15,9 +16,9 @@ class IncrementalCompilationMultiProjectIT : BaseGradleIT() {
 
     private fun androidBuildOptions() =
             BuildOptions(withDaemon = true,
-                    androidHome = File(ANDROID_HOME_PATH),
-                    androidGradlePluginVersion = ANDROID_GRADLE_PLUGIN_VERSION,
-                    incremental = true)
+                         androidHome = KotlinTestUtils.findAndroidSdk(),
+                         androidGradlePluginVersion = ANDROID_GRADLE_PLUGIN_VERSION,
+                         incremental = true)
 
     override fun defaultBuildOptions(): BuildOptions =
             super.defaultBuildOptions().copy(withDaemon = true, incremental = true)
@@ -198,19 +199,12 @@ open class A {
 class IncrementalJavaChangeDefaultIT : IncrementalCompilationJavaChangesBase(usePreciseJavaTracking = null) {
     @Test
     override fun testModifySignatureTrackedJavaInLib() {
-        doTest(trackedJavaClass, changeSignature,
-               expectedAffectedSources = listOf(
-                       "TrackedJavaClassChild.kt", "useTrackedJavaClass.kt", "useTrackedJavaClassFooMethodUsage.kt",
-                       "useTrackedJavaClassSameModule.kt"))
+        doTest(trackedJavaClass, changeSignature, expectedAffectedSources = listOf("TrackedJavaClassChild.kt", "useTrackedJavaClass.kt"))
     }
 
     @Test
     override fun testModifyBodyTrackedJavaInLib() {
-        doTest(trackedJavaClass, changeBody,
-               expectedAffectedSources = listOf(
-                       "TrackedJavaClassChild.kt", "useTrackedJavaClass.kt", "useTrackedJavaClassFooMethodUsage.kt",
-                       "useTrackedJavaClassSameModule.kt"
-               ))
+        doTest(trackedJavaClass, changeBody, expectedAffectedSources = listOf())
     }
 }
 
@@ -223,6 +217,30 @@ class IncrementalJavaChangePreciseIT : IncrementalCompilationJavaChangesBase(use
     @Test
     override fun testModifyBodyTrackedJavaInLib() {
         doTest(trackedJavaClass, changeBody, expectedAffectedSources = listOf())
+    }
+}
+
+class IncrementalJavaChangeDisablePreciseIT : IncrementalCompilationJavaChangesBase(usePreciseJavaTracking = false) {
+    @Test
+    override fun testModifySignatureTrackedJavaInLib() {
+        doTest(
+            trackedJavaClass, changeSignature,
+            expectedAffectedSources = listOf(
+                "TrackedJavaClassChild.kt", "useTrackedJavaClass.kt", "useTrackedJavaClassFooMethodUsage.kt",
+                "useTrackedJavaClassSameModule.kt"
+            )
+        )
+    }
+
+    @Test
+    override fun testModifyBodyTrackedJavaInLib() {
+        doTest(
+            trackedJavaClass, changeBody,
+            expectedAffectedSources = listOf(
+                "TrackedJavaClassChild.kt", "useTrackedJavaClass.kt", "useTrackedJavaClassFooMethodUsage.kt",
+                "useTrackedJavaClassSameModule.kt"
+            )
+        )
     }
 }
 

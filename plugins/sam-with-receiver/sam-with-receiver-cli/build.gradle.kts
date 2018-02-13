@@ -7,16 +7,13 @@ dependencies {
     compileOnly(project(":compiler:frontend"))
     compileOnly(project(":compiler:frontend.java"))
     compileOnly(project(":compiler:plugin-api"))
-    runtime(projectRuntimeJar(":kotlin-compiler"))
-    runtime(projectDist(":kotlin-stdlib"))
-    runtime(projectDist(":kotlin-reflect"))
+    compileOnly(intellijCoreDep()) { includeJars("intellij-core") }
 
     testCompile(project(":compiler:backend"))
     testCompile(project(":compiler:cli"))
     testCompile(project(":compiler:tests-common"))
     testCompile(projectTests(":compiler:tests-common"))
     testCompile(commonDep("junit:junit"))
-    testRuntime(ideaSdkDeps("*.jar"))
 }
 
 sourceSets {
@@ -43,5 +40,9 @@ ideaPlugin {
 }
 
 projectTest {
+    dependsOn(":prepare:mock-runtime-for-test:dist")
     workingDir = rootDir
+    doFirst {
+        systemProperty("idea.home.path", intellijRootDir().canonicalPath)
+    }
 }

@@ -27,6 +27,8 @@ import org.jetbrains.kotlin.asJava.classes.KtLightClassForFacade
 import org.jetbrains.kotlin.asJava.elements.*
 import org.jetbrains.kotlin.asJava.toLightClass
 import org.jetbrains.kotlin.codegen.state.KotlinTypeMapper
+import org.jetbrains.kotlin.descriptors.ClassConstructorDescriptor
+import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.descriptors.ConstructorDescriptor
 import org.jetbrains.kotlin.descriptors.FunctionDescriptor
 import org.jetbrains.kotlin.idea.KotlinLanguage
@@ -206,6 +208,17 @@ class KotlinUastLanguagePlugin : UastLanguagePlugin {
                 is KtFile -> el<UFile> { KotlinUFile(original, this@KotlinUastLanguagePlugin) }
                 is FakeFileForLightClass -> el<UFile> { KotlinUFile(original.navigationElement, this@KotlinUastLanguagePlugin) }
                 is KtAnnotationEntry -> el<UAnnotation>(build(::KotlinUAnnotation))
+                is KtCallExpression ->
+                    if (requiredType != null && UAnnotation::class.java.isAssignableFrom(requiredType)) {
+                        el<UAnnotation> {
+                            val classDescriptor =
+                                (original.getResolvedCall(original.analyze())?.resultingDescriptor as? ClassConstructorDescriptor)?.constructedClass
+                            if (classDescriptor?.kind == ClassKind.ANNOTATION_CLASS)
+                                KotlinUNestedAnnotation(original, givenParent, classDescriptor)
+                            else
+                                null
+                        }
+                    } else null
                 is KtLightAnnotationForSourceEntry -> convertElement(original.kotlinOrigin, givenParent, requiredType)
                 else -> null
             }
@@ -323,8 +336,20 @@ internal object KotlinConverter {
                 }
             is KtImportDirective -> el<UImportStatement>(build(::KotlinUImportStatement))
             else -> {
-                if (element is LeafPsiElement && element.elementType == KtTokens.IDENTIFIER) {
+                if (element is LeafPsiElement) {
+                    if (element.elementType == KtTokens.IDENTIFIER)
                     el<UIdentifier>(build(::UIdentifier))
+                    else if (element.elementType == KtTokens.LBRACKET && element.parent is KtCollectionLiteralExpression)
+                        el<UIdentifier> {
+                            UIdentifier(
+                                element,
+                                KotlinUCollectionLiteralExpression(
+                                    element.parent as KtCollectionLiteralExpression,
+                                    null
+                                )
+                            )
+                        }
+                    else null
                 } else {
                     null
                 }
@@ -395,6 +420,7 @@ internal object KotlinConverter {
             is KtSafeQualifiedExpression -> expr<UQualifiedReferenceExpression>(build(::KotlinUSafeQualifiedExpression))
             is KtSimpleNameExpression -> expr<USimpleNameReferenceExpression>(build(::KotlinUSimpleReferenceExpression))
             is KtCallExpression -> expr<UCallExpression>(build(::KotlinUFunctionCallExpression))
+            is KtCollectionLiteralExpression -> expr<UCallExpression>(build(::KotlinUCollectionLiteralExpression))
             is KtBinaryExpression -> {
                 if (expression.operationToken == KtTokens.ELVIS) {
                     expr<UExpressionList>(build(::createElvisExpression))

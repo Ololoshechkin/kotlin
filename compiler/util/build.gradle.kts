@@ -6,7 +6,9 @@ jvmTarget = "1.6"
 dependencies {
     compile(projectDist(":kotlin-stdlib"))
     compile(project(":core:deserialization"))
-    compile(ideaSdkCoreDeps(*(rootProject.extra["ideaCoreSdkJars"] as Array<String>)))
+    compileOnly(intellijCoreDep()) { includeJars("intellij-core") }
+    compileOnly(intellijDep()) { includeIntellijCoreJarDependencies(project) }
+    compileOnly(intellijDep("jps-standalone")) { includeJars("jps-model") }
 }
 
 sourceSets {

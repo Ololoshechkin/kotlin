@@ -302,6 +302,32 @@ open class Kapt3IT : Kapt3BaseIT() {
     }
 
     @Test
+    fun testLocationMapping() {
+        val project = Project("locationMapping", GRADLE_VERSION, directoryPrefix = "kapt2")
+
+        project.build("build") {
+            assertFailed()
+
+            assertContains("Test.java:9: error: GenError element")
+            assertContains("Test.java:17: error: GenError element")
+        }
+
+        project.projectDir.getFileByName("build.gradle").modify {
+            it.replace("mapDiagnosticLocations = false", "mapDiagnosticLocations = true")
+        }
+
+        project.build("build") {
+            assertFailed()
+
+            assertNotContains("Test.java:9: error: GenError element")
+            assertNotContains("Test.java:17: error: GenError element")
+
+            assertContains("test.kt:3: error: GenError element")
+            assertContains("test.kt:7: error: GenError element")
+        }
+    }
+
+    @Test
     fun testChangesInLocalAnnotationProcessor() {
         val project = Project("localAnnotationProcessor", GRADLE_VERSION, directoryPrefix = "kapt2")
 
@@ -322,6 +348,19 @@ open class Kapt3IT : Kapt3BaseIT() {
                               ":example:kaptGenerateStubsKotlin UP-TO-DATE")
 
             assertContains("Additional warning message from AP")
+        }
+    }
+
+    @Test
+    fun testKaptConfigurationLazyResolution() = with(Project("simple", GRADLE_VERSION, directoryPrefix = "kapt2")) {
+        setupWorkingDir()
+        File(projectDir, "build.gradle").appendText(
+            "\ndependencies { kapt project.files { throw new GradleException(\"Resolved!\") } }"
+        )
+        // Check that the kapt configuration does not get resolved during the project evaluation:
+        build("tasks") {
+            assertSuccessful()
+            assertNotContains("Resolved!")
         }
     }
 }

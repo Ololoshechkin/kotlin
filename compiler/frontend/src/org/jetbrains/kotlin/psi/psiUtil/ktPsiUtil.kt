@@ -17,6 +17,7 @@
 package org.jetbrains.kotlin.psi.psiUtil
 
 import com.intellij.extapi.psi.StubBasedPsiElementBase
+import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiParameter
@@ -27,6 +28,7 @@ import com.intellij.psi.tree.TokenSet
 import org.jetbrains.kotlin.KtNodeTypes
 import org.jetbrains.kotlin.diagnostics.DiagnosticSink
 import org.jetbrains.kotlin.diagnostics.Errors
+import org.jetbrains.kotlin.lexer.KotlinLexer
 import org.jetbrains.kotlin.lexer.KtModifierKeywordToken
 import org.jetbrains.kotlin.lexer.KtTokens
 import org.jetbrains.kotlin.name.Name
@@ -153,6 +155,9 @@ fun KtExpression.getQualifiedExpressionForReceiverOrThis(): KtExpression {
 
 fun KtExpression.isDotReceiver(): Boolean =
     (parent as? KtDotQualifiedExpression)?.receiverExpression == this
+
+fun KtExpression.getPossiblyQualifiedCallExpression(): KtCallExpression? =
+    ((this as? KtQualifiedExpression)?.selectorExpression ?: this) as? KtCallExpression
 
 // ---------- Block expression -------------------------------------------------------------------------------------------------------------
 
@@ -569,3 +574,19 @@ fun KtExpression.getLabeledParent(labelName: String): KtLabeledExpression? {
     }
     return null
 }
+
+fun PsiElement.astReplace(newElement: PsiElement) = parent.node.replaceChild(node, newElement.node)
+
+var KtElement.parentSubstitute: PsiElement? by UserDataProperty(Key.create<PsiElement>("PARENT_SUBSTITUTE"))
+
+fun String?.isIdentifier(): Boolean {
+    if (this == null || isEmpty()) return false
+
+    val lexer = KotlinLexer()
+    lexer.start(this, 0, length)
+    if (lexer.tokenType !== KtTokens.IDENTIFIER) return false
+    lexer.advance()
+    return lexer.tokenType == null
+}
+
+fun String.quoteIfNeeded(): String = if (this.isIdentifier()) this else "`$this`"

@@ -61,15 +61,18 @@ import org.jetbrains.kotlin.idea.KotlinFileType
 import org.jetbrains.kotlin.idea.KotlinLanguage
 import org.jetbrains.kotlin.idea.caches.resolve.analyze
 import org.jetbrains.kotlin.idea.caches.resolve.getJavaMemberDescriptor
-import org.jetbrains.kotlin.idea.caches.resolve.unsafeResolveToDescriptor
 import org.jetbrains.kotlin.idea.caches.resolve.resolveToDescriptorIfAny
+import org.jetbrains.kotlin.idea.caches.resolve.unsafeResolveToDescriptor
 import org.jetbrains.kotlin.idea.codeInsight.DescriptorToSourceUtilsIde
-import org.jetbrains.kotlin.idea.core.*
+import org.jetbrains.kotlin.idea.core.ShortenReferences
+import org.jetbrains.kotlin.idea.core.getPackage
+import org.jetbrains.kotlin.idea.core.quoteSegmentsIfNeeded
 import org.jetbrains.kotlin.idea.core.util.showYesNoCancelDialog
 import org.jetbrains.kotlin.idea.highlighter.markers.actualsForExpected
 import org.jetbrains.kotlin.idea.highlighter.markers.liftToExpected
 import org.jetbrains.kotlin.idea.intentions.RemoveCurlyBracesFromTemplateIntention
 import org.jetbrains.kotlin.idea.j2k.IdeaJavaToKotlinServices
+import org.jetbrains.kotlin.idea.project.languageVersionSettings
 import org.jetbrains.kotlin.idea.refactoring.changeSignature.KotlinValVar
 import org.jetbrains.kotlin.idea.refactoring.changeSignature.toValVar
 import org.jetbrains.kotlin.idea.refactoring.memberInfo.KtPsiClassWrapper
@@ -85,9 +88,7 @@ import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.psi.codeFragmentUtil.suppressDiagnosticsInDebugMode
 import org.jetbrains.kotlin.psi.psiUtil.*
 import org.jetbrains.kotlin.renderer.DescriptorRenderer
-import org.jetbrains.kotlin.resolve.AnalyzingUtils
-import org.jetbrains.kotlin.resolve.BindingContext
-import org.jetbrains.kotlin.resolve.DescriptorUtils
+import org.jetbrains.kotlin.resolve.*
 import org.jetbrains.kotlin.resolve.calls.callUtil.getCallWithAssert
 import org.jetbrains.kotlin.resolve.calls.callUtil.getResolvedCall
 import org.jetbrains.kotlin.resolve.lazy.BodyResolveMode
@@ -321,7 +322,10 @@ fun PsiFile.getLineStartOffset(line: Int): Int? {
         val startOffset = doc.getLineStartOffset(line)
         val element = findElementAt(startOffset) ?: return startOffset
 
-        return PsiTreeUtil.skipSiblingsForward(element, PsiWhiteSpace::class.java, PsiComment::class.java)?.startOffset ?: startOffset
+        if (element is PsiWhiteSpace || element is PsiComment) {
+            return PsiTreeUtil.skipSiblingsForward(element, PsiWhiteSpace::class.java, PsiComment::class.java)?.startOffset ?: startOffset
+        }
+        return startOffset
     }
 
     return null
@@ -707,9 +711,9 @@ fun invokeOnceOnCommandFinish(action: () -> Unit) {
     commandProcessor.addCommandListener(listener)
 }
 
-fun FqNameUnsafe.hasIdentifiersOnly(): Boolean = pathSegments().all { KotlinNameSuggester.isIdentifier(it.asString().quoteIfNeeded()) }
+fun FqNameUnsafe.hasIdentifiersOnly(): Boolean = pathSegments().all { it.asString().quoteIfNeeded().isIdentifier() }
 
-fun FqName.hasIdentifiersOnly(): Boolean = pathSegments().all { KotlinNameSuggester.isIdentifier(it.asString().quoteIfNeeded()) }
+fun FqName.hasIdentifiersOnly(): Boolean = pathSegments().all { it.asString().quoteIfNeeded().isIdentifier() }
 
 fun PsiNamedElement.isInterfaceClass(): Boolean = when (this) {
     is KtClass -> isInterface()
@@ -791,6 +795,15 @@ fun dropOverrideKeywordIfNecessary(element: KtNamedDeclaration) {
     val callableDescriptor = element.resolveToDescriptorIfAny() as? CallableDescriptor ?: return
     if (callableDescriptor.overriddenDescriptors.isEmpty()) {
         element.removeModifier(KtTokens.OVERRIDE_KEYWORD)
+    }
+}
+
+fun dropOperatorKeywordIfNecessary(element: KtNamedDeclaration) {
+    val callableDescriptor = element.resolveToDescriptorIfAny() as? CallableDescriptor ?: return
+    val diagnosticHolder = BindingTraceContext()
+    OperatorModifierChecker.check(element, callableDescriptor, diagnosticHolder, element.languageVersionSettings)
+    if (diagnosticHolder.bindingContext.diagnostics.any { it.factory == Errors.INAPPLICABLE_OPERATOR_MODIFIER }) {
+        element.removeModifier(KtTokens.OPERATOR_KEYWORD)
     }
 }
 
@@ -914,7 +927,7 @@ fun checkSuperMethods(
 
 fun checkSuperMethodsWithPopup(
         declaration: KtNamedDeclaration,
-        deepestSuperMethods: List<PsiMethod>,
+        deepestSuperMethods: List<PsiElement>,
         actionString: String,
         editor: Editor,
         action: (List<PsiElement>) -> Unit
@@ -923,7 +936,12 @@ fun checkSuperMethodsWithPopup(
 
     val superMethod = deepestSuperMethods.first()
 
-    val superClass = superMethod.containingClass ?: return action(listOf(declaration))
+    val (superClass, isAbstract) = when (superMethod) {
+        is PsiMember -> superMethod.containingClass to superMethod.hasModifierProperty(PsiModifier.ABSTRACT)
+        is KtNamedDeclaration -> superMethod.containingClassOrObject to superMethod.isAbstract()
+        else -> null
+    } ?: return action(listOf(declaration))
+    if (superClass == null) return action(listOf(declaration))
 
     if (ApplicationManager.getApplication().isUnitTestMode) return action(deepestSuperMethods)
 
@@ -946,7 +964,7 @@ fun checkSuperMethodsWithPopup(
     val renameCurrent = actionString + " only current $kind"
     val title = buildString {
         append(declaration.name)
-        append(if (superMethod.hasModifierProperty(PsiModifier.ABSTRACT)) " implements " else " overrides ")
+        append(if (isAbstract) " implements " else " overrides ")
         append(ElementDescriptionUtil.getElementDescription(superMethod, UsageViewTypeLocation.INSTANCE))
         append(" of ")
         append(SymbolPresentationUtil.getSymbolPresentableText(superClass))

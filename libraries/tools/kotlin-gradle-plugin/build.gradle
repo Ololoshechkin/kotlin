@@ -43,6 +43,14 @@ dependencies {
     compileOnly 'org.codehaus.groovy:groovy-all:2.4.12'
     compileOnly gradleApi()
 
+    compileOnly("kotlin.build.custom.deps:intellij-core:${rootProject.ext["versions.intellijSdk"]}") {
+        artifact {
+            name = 'intellij-core'
+            type = 'jar'
+            extension = 'jar'
+        }
+    }
+
     runtime project(path: ':kotlin-compiler-embeddable', configuration: "runtimeJar")
     runtime project(path: ':kotlin-annotation-processing-gradle', configuration: "runtimeJar")
     runtime project(path: ':kotlin-android-extensions', configuration: 'runtimeJar')

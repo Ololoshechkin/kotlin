@@ -16,8 +16,6 @@
 
 package org.jetbrains.kotlin.resolve.calls.tower
 
-import org.jetbrains.kotlin.config.LanguageVersionSettings
-import org.jetbrains.kotlin.contracts.EffectSystem
 import org.jetbrains.kotlin.descriptors.*
 import org.jetbrains.kotlin.diagnostics.Diagnostic
 import org.jetbrains.kotlin.diagnostics.Errors
@@ -59,10 +57,8 @@ import org.jetbrains.kotlin.utils.addToStdlib.cast
 import org.jetbrains.kotlin.utils.addToStdlib.safeAs
 import java.util.*
 
-
 class KotlinToResolvedCallTransformer(
     private val callCheckers: Iterable<CallChecker>,
-    private val languageFeatureSettings: LanguageVersionSettings,
     private val dataFlowAnalyzer: DataFlowAnalyzer,
     private val argumentTypeResolver: ArgumentTypeResolver,
     private val constantExpressionEvaluator: ConstantExpressionEvaluator,
@@ -70,9 +66,8 @@ class KotlinToResolvedCallTransformer(
     private val expressionTypingServices: ExpressionTypingServices,
     private val doubleColonExpressionResolver: DoubleColonExpressionResolver,
     private val additionalDiagnosticReporter: AdditionalDiagnosticReporter,
-    private val effectSystem: EffectSystem
+    private val moduleDescriptor: ModuleDescriptor
 ) {
-
     companion object {
         private val REPORT_MISSING_NEW_INFERENCE_DIAGNOSTIC
             get() = false
@@ -103,9 +98,8 @@ class KotlinToResolvedCallTransformer(
             CallResolutionResult.Type.ERROR, CallResolutionResult.Type.COMPLETED -> {
                 val resultSubstitutor = baseResolvedCall.constraintSystem.buildResultingSubstitutor()
                 val ktPrimitiveCompleter = ResolvedAtomCompleter(
-                    resultSubstitutor, context.trace, context, this,
-                    expressionTypingServices, argumentTypeResolver, doubleColonExpressionResolver,
-                    languageFeatureSettings, deprecationResolver
+                    resultSubstitutor, context.trace, context, this, expressionTypingServices, argumentTypeResolver,
+                    doubleColonExpressionResolver, deprecationResolver, moduleDescriptor
                 )
 
                 for (subKtPrimitive in candidate.subResolvedAtoms) {

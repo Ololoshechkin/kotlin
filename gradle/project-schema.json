@@ -70,6 +70,7 @@
             "java": "org.gradle.api.plugins.JavaPluginConvention"
         },
         "configurations": [
+            "antLauncherJar",
             "apiElements",
             "archives",
             "compile",
@@ -217,6 +218,7 @@
             "compileOnly",
             "default",
             "implementation",
+            "instrumentationClasspath",
             "kapt",
             "kaptTest",
             "runtime",
@@ -832,6 +834,8 @@
             "distJar",
             "fatJar",
             "fatJarContents",
+            "fatJarContentsStripMetadata",
+            "fatJarContentsStripServices",
             "fatSourcesJarContents",
             "implementation",
             "proguardLibraryJars",
@@ -990,6 +994,7 @@
             "compileOnly",
             "default",
             "distJar",
+            "fatJarContents",
             "implementation",
             "kapt",
             "kaptTest",
@@ -1061,6 +1066,7 @@
             "defaultArtifacts": "org.gradle.api.internal.plugins.DefaultArtifactPublicationSet",
             "reporting": "org.gradle.api.reporting.ReportingExtension",
             "pluginBundle": "com.gradle.publish.PluginBundleExtension",
+            "gradlePlugin": "org.gradle.plugin.devel.GradlePluginDevelopmentExtension",
             "kotlin": "org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension",
             "kapt": "org.jetbrains.kotlin.gradle.plugin.KaptExtension",
             "groovyRuntime": "org.gradle.api.tasks.GroovyRuntime",
@@ -1112,6 +1118,7 @@
             "java": "org.gradle.api.plugins.JavaPluginConvention"
         },
         "configurations": [
+            "androidSdk",
             "apiElements",
             "archives",
             "compile",
@@ -2129,6 +2136,7 @@
             "runtimeElements",
             "runtimeJar",
             "runtimeOnly",
+            "springClasspath",
             "testCompile",
             "testCompileClasspath",
             "testCompileOnly",
@@ -2475,6 +2483,7 @@
             "compileOnly",
             "default",
             "implementation",
+            "jflexPath",
             "kapt",
             "kaptTest",
             "runtime",
@@ -3211,18 +3220,53 @@
             "kapt": "org.jetbrains.kotlin.gradle.plugin.KaptExtension"
         }
     },
+    ":custom-dependencies:android-sdk": {
+        "conventions": {
+            
+        },
+        "configurations": [
+            "androidJar",
+            "androidPlatform",
+            "androidSdk",
+            "android_m2repository_r44",
+            "build-tools_r23.0.1",
+            "buildTools",
+            "dxSources",
+            "platform-tools_r25.0.3",
+            "platform_26_r02",
+            "tools_r24.3.4"
+        ],
+        "extensions": {
+            "ext": "org.gradle.api.plugins.ExtraPropertiesExtension"
+        }
+    },
     ":custom-dependencies:protobuf-lite": {
         "conventions": {
             
         },
         "configurations": [
+            "archives",
             "default",
-            "relocated",
-            "shadow"
+            "relocatedProtobuf",
+            "relocatedProtobufSources"
         ],
         "extensions": {
-            "ext": "org.gradle.api.plugins.ExtraPropertiesExtension",
-            "shadow": "com.github.jengelman.gradle.plugins.shadow.ShadowExtension"
+            "ext": "org.gradle.api.plugins.ExtraPropertiesExtension"
+        }
+    },
+    ":custom-dependencies:protobuf-relocated": {
+        "conventions": {
+            
+        },
+        "configurations": [
+            "archives",
+            "baseProtobuf",
+            "baseProtobufSources",
+            "default",
+            "sources"
+        ],
+        "extensions": {
+            "ext": "org.gradle.api.plugins.ExtraPropertiesExtension"
         }
     },
     ":examples:annotation-processor-example": {
@@ -3444,6 +3488,7 @@
             "java": "org.gradle.api.plugins.JavaPluginConvention"
         },
         "configurations": [
+            "androidSdk",
             "apiElements",
             "archives",
             "compile",
@@ -3550,6 +3595,7 @@
             "java": "org.gradle.api.plugins.JavaPluginConvention"
         },
         "configurations": [
+            "androidSdk",
             "apiElements",
             "archives",
             "compile",
@@ -3557,6 +3603,7 @@
             "compileOnly",
             "default",
             "implementation",
+            "instrumentationClasspath",
             "kapt",
             "kaptTest",
             "runtime",
@@ -3628,6 +3675,7 @@
             "compileOnly",
             "default",
             "implementation",
+            "instrumentationClasspath",
             "kapt",
             "kaptTest",
             "runtime",
@@ -3938,6 +3986,7 @@
             "java": "org.gradle.api.plugins.JavaPluginConvention"
         },
         "configurations": [
+            "antLauncherJar",
             "apiElements",
             "archives",
             "compile",
@@ -4343,6 +4392,7 @@
             "java": "org.gradle.api.plugins.JavaPluginConvention"
         },
         "configurations": [
+            "androidJar",
             "apiElements",
             "archives",
             "compile",
@@ -4353,6 +4403,7 @@
             "implementation",
             "kapt",
             "kaptTest",
+            "robolectricClasspath",
             "runtime",
             "runtimeClasspath",
             "runtimeElements",
@@ -4381,6 +4432,8 @@
             "java": "org.gradle.api.plugins.JavaPluginConvention"
         },
         "configurations": [
+            "androidJar",
+            "androidSdk",
             "apiElements",
             "archives",
             "compile",
@@ -4418,6 +4471,7 @@
             "java": "org.gradle.api.plugins.JavaPluginConvention"
         },
         "configurations": [
+            "androidSdk",
             "apiElements",
             "archives",
             "compile",

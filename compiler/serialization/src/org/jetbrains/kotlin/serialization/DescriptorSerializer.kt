@@ -1,17 +1,6 @@
 /*
- * Copyright 2010-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license
+ * that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.serialization
@@ -29,6 +18,7 @@ import org.jetbrains.kotlin.resolve.DescriptorUtils
 import org.jetbrains.kotlin.resolve.DescriptorUtils.isEnumEntry
 import org.jetbrains.kotlin.resolve.MemberComparator
 import org.jetbrains.kotlin.resolve.RequireKotlinNames
+import org.jetbrains.kotlin.resolve.calls.components.isActualParameterWithExpectedDefault
 import org.jetbrains.kotlin.resolve.checkers.KotlinVersionStringAnnotationValueChecker
 import org.jetbrains.kotlin.resolve.constants.EnumValue
 import org.jetbrains.kotlin.resolve.constants.IntValue
@@ -51,13 +41,6 @@ class DescriptorSerializer private constructor(
 ) {
     private val contractSerializer = ContractSerializer()
 
-    fun serialize(message: MessageLite): ByteArray {
-        return ByteArrayOutputStream().apply {
-            stringTable.serializeTo(this)
-            message.writeTo(this)
-        }.toByteArray()
-    }
-
     private fun createChildSerializer(descriptor: DeclarationDescriptor): DescriptorSerializer =
             DescriptorSerializer(descriptor, Interner(typeParameters), extension, typeTable, versionRequirementTable,
                                  serializeTypeTableToFunction = false)
@@ -73,7 +56,7 @@ class DescriptorSerializer private constructor(
         val flags = Flags.getClassFlags(
                 hasAnnotations(classDescriptor), normalizeVisibility(classDescriptor), classDescriptor.modality, classDescriptor.kind,
                 classDescriptor.isInner, classDescriptor.isCompanionObject, classDescriptor.isData, classDescriptor.isExternal,
-                classDescriptor.isExpect
+                classDescriptor.isExpect, classDescriptor.isInline
         )
         if (flags != builder.flags) {
             builder.flags = flags
@@ -404,9 +387,10 @@ class DescriptorSerializer private constructor(
     private fun valueParameter(descriptor: ValueParameterDescriptor): ProtoBuf.ValueParameter.Builder {
         val builder = ProtoBuf.ValueParameter.newBuilder()
 
+        val declaresDefaultValue = descriptor.declaresDefaultValue() || descriptor.isActualParameterWithExpectedDefault
+
         val flags = Flags.getValueParameterFlags(
-                hasAnnotations(descriptor), descriptor.declaresDefaultValue(),
-                descriptor.isCrossinline, descriptor.isNoinline
+            hasAnnotations(descriptor), declaresDefaultValue, descriptor.isCrossinline, descriptor.isNoinline
         )
         if (flags != builder.flags) {
             builder.flags = flags
@@ -724,6 +708,14 @@ class DescriptorSerializer private constructor(
                 serializer.typeParameters.intern(typeParameter)
             }
             return serializer
+        }
+
+        @JvmStatic
+        fun serialize(message: MessageLite, stringTable: StringTable): ByteArray {
+            return ByteArrayOutputStream().apply {
+                stringTable.serializeTo(this)
+                message.writeTo(this)
+            }.toByteArray()
         }
 
         private fun variance(variance: Variance): ProtoBuf.TypeParameter.Variance = when (variance) {

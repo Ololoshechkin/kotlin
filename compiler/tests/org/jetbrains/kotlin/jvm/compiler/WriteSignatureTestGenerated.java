@@ -550,6 +550,57 @@ public class WriteSignatureTestGenerated extends AbstractWriteSignatureTest {
         }
     }
 
+    @TestMetadata("compiler/testData/writeSignature/inlineClasses")
+    @TestDataPath("$PROJECT_ROOT")
+    @RunWith(JUnit3RunnerWithInners.class)
+    public static class InlineClasses extends AbstractWriteSignatureTest {
+        public void testAllFilesPresentInInlineClasses() throws Exception {
+            KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/writeSignature/inlineClasses"), Pattern.compile("^(.+)\\.kt$"), TargetBackend.ANY, true);
+        }
+
+        @TestMetadata("basicInlineClassDeclarationCodegen.kt")
+        public void testBasicInlineClassDeclarationCodegen() throws Exception {
+            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/writeSignature/inlineClasses/basicInlineClassDeclarationCodegen.kt");
+            doTest(fileName);
+        }
+
+        @TestMetadata("genericInlineClassBasedOnGenericType.kt")
+        public void testGenericInlineClassBasedOnGenericType() throws Exception {
+            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/writeSignature/inlineClasses/genericInlineClassBasedOnGenericType.kt");
+            doTest(fileName);
+        }
+
+        @TestMetadata("genericInlineClassWithDefaultTypeParameter.kt")
+        public void testGenericInlineClassWithDefaultTypeParameter() throws Exception {
+            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/writeSignature/inlineClasses/genericInlineClassWithDefaultTypeParameter.kt");
+            doTest(fileName);
+        }
+
+        @TestMetadata("genericInlineClassWithNotNullTypeParameter.kt")
+        public void testGenericInlineClassWithNotNullTypeParameter() throws Exception {
+            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/writeSignature/inlineClasses/genericInlineClassWithNotNullTypeParameter.kt");
+            doTest(fileName);
+        }
+
+        @TestMetadata("nullableInlineClassType.kt")
+        public void testNullableInlineClassType() throws Exception {
+            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/writeSignature/inlineClasses/nullableInlineClassType.kt");
+            doTest(fileName);
+        }
+
+        @TestMetadata("simpleSignatureWithInlineClassTypesAsPrimitive.kt")
+        public void testSimpleSignatureWithInlineClassTypesAsPrimitive() throws Exception {
+            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/writeSignature/inlineClasses/simpleSignatureWithInlineClassTypesAsPrimitive.kt");
+            doTest(fileName);
+        }
+
+        @TestMetadata("simpleSignatureWithInlineClassTypesAsReference.kt")
+        public void testSimpleSignatureWithInlineClassTypesAsReference() throws Exception {
+            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/writeSignature/inlineClasses/simpleSignatureWithInlineClassTypesAsReference.kt");
+            doTest(fileName);
+        }
+    }
+
     @TestMetadata("compiler/testData/writeSignature/nothing")
     @TestDataPath("$PROJECT_ROOT")
     @RunWith(JUnit3RunnerWithInners.class)

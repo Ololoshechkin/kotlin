@@ -25,9 +25,12 @@ dependencies {
     testCompile(projectTests(":compiler:tests-common-jvm6"))
     testCompileOnly(project(":kotlin-reflect-api"))
     testCompile(commonDep("junit:junit"))
-    testCompile(ideaSdkCoreDeps("intellij-core"))
-    testCompile(ideaSdkDeps("openapi", "idea", "idea_rt"))
-    testCompile(preloadedDeps("dx", subdir = "android-5.0/lib"))
+    testCompile(androidDxJar()) { isTransitive = false }
+    testCompile(intellijCoreDep()) { includeJars("intellij-core"); isTransitive = false }
+    testCompile(intellijDep()) {
+        includeJars("openapi", "idea", "idea_rt", "guava", "trove4j", "picocontainer", "asm-all", "log4j", "jdom", rootProject = rootProject)
+        isTransitive = false
+    }
 }
 
 sourceSets {

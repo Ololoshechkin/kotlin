@@ -29,8 +29,6 @@ import org.jetbrains.kotlin.psi2ir.intermediate.VariableLValue
 import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.calls.model.ResolvedCall
 import org.jetbrains.kotlin.resolve.descriptorUtil.getSuperClassOrAny
-import org.jetbrains.kotlin.resolve.descriptorUtil.hasDefaultValue
-import java.lang.AssertionError
 import java.util.*
 
 class BodyGenerator(
@@ -234,7 +232,9 @@ class BodyGenerator(
                 // If we are here, we didn't find a superclass entry in super types.
                 // Thus, super class should be Any.
                 val superClass = classDescriptor.getSuperClassOrAny()
-                assert(KotlinBuiltIns.isAny(superClass)) { "$classDescriptor: Super class should be any: $superClass" }
+                assert(KotlinBuiltIns.isAny(superClass)) {
+                    "$classDescriptor: Super class should be any: $superClass"
+                }
                 generateAnySuperConstructorCall(irBlockBody, ktClassOrObject)
             }
         }
@@ -297,8 +297,9 @@ class BodyGenerator(
 
         // Default enum entry constructor
         val enumClassConstructor =
-            enumClassDescriptor.constructors.singleOrNull { it.valueParameters.all { it.hasDefaultValue() } }
-                    ?: throw AssertionError("Enum class $enumClassDescriptor should have a default constructor")
+            enumClassDescriptor.constructors.singleOrNull { constructor ->
+                constructor.valueParameters.all(ValueParameterDescriptor::declaresDefaultValue)
+            } ?: throw AssertionError("Enum class $enumClassDescriptor should have a default constructor")
         return IrEnumConstructorCallImpl(
             ktEnumEntry.startOffset, ktEnumEntry.endOffset,
             context.symbolTable.referenceConstructor(enumClassConstructor)
@@ -315,4 +316,3 @@ class BodyGenerator(
         )
 
 }
-

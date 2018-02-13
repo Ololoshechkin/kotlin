@@ -1,17 +1,6 @@
 /*
- * Copyright 2010-2015 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license
+ * that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.codegen;
@@ -33,7 +22,6 @@ import org.jetbrains.kotlin.codegen.serialization.JvmStringTable;
 import org.jetbrains.kotlin.codegen.state.GenerationState;
 import org.jetbrains.kotlin.codegen.state.KotlinTypeMapper;
 import org.jetbrains.kotlin.config.JvmTarget;
-import org.jetbrains.kotlin.config.LanguageVersionSettingsImpl;
 import org.jetbrains.kotlin.descriptors.*;
 import org.jetbrains.kotlin.lexer.KtTokens;
 import org.jetbrains.kotlin.load.java.JavaVisibilities;
@@ -139,6 +127,12 @@ public class AsmUtil {
         return primitiveTypeByBoxedType.get(boxedType);
     }
 
+    @NotNull
+    public static Type unboxUnlessPrimitive(@NotNull Type boxedOrPrimitiveType) {
+        if (isPrimitive(boxedOrPrimitiveType)) return boxedOrPrimitiveType;
+        return unboxType(boxedOrPrimitiveType);
+    }
+
     public static boolean isBoxedTypeOf(@NotNull Type boxedType, @NotNull Type unboxedType) {
         return unboxPrimitiveTypeOrNull(boxedType) == unboxedType;
     }
@@ -194,11 +188,11 @@ public class AsmUtil {
     public static boolean isStaticMethod(OwnerKind kind, CallableMemberDescriptor functionDescriptor) {
         return isStaticKind(kind) ||
                KotlinTypeMapper.isStaticAccessor(functionDescriptor) ||
-               CodegenUtilKt.isJvmStaticInObjectOrClass(functionDescriptor);
+               CodegenUtilKt.isJvmStaticInObjectOrClassOrInterface(functionDescriptor);
     }
 
     public static boolean isStaticKind(OwnerKind kind) {
-        return kind == OwnerKind.PACKAGE || kind == OwnerKind.DEFAULT_IMPLS;
+        return kind == OwnerKind.PACKAGE || kind == OwnerKind.DEFAULT_IMPLS || kind == OwnerKind.ERASED_INLINE_CLASS;
     }
 
     public static int getMethodAsmFlags(FunctionDescriptor functionDescriptor, OwnerKind kind, GenerationState state) {
@@ -714,7 +708,7 @@ public class AsmUtil {
         return new StackValue(stackValue.type) {
 
             @Override
-            public void putSelector(@NotNull Type type, @NotNull InstructionAdapter v) {
+            public void putSelector(@NotNull Type type, @Nullable KotlinType kotlinType, @NotNull InstructionAdapter v) {
                 Type innerType = stackValue.type;
                 stackValue.put(innerType, v);
                 if (innerType.getSort() == Type.OBJECT || innerType.getSort() == Type.ARRAY) {
@@ -887,19 +881,29 @@ public class AsmUtil {
             @NotNull DescriptorSerializer serializer,
             @NotNull MessageLite message
     ) {
-        byte[] bytes = serializer.serialize(message);
+        writeAnnotationData(av, message, (JvmStringTable) serializer.getStringTable());
+    }
 
-        AnnotationVisitor data = av.visitArray(JvmAnnotationNames.METADATA_DATA_FIELD_NAME);
-        for (String string : BitEncoding.encodeBytes(bytes)) {
-            data.visit(null, string);
-        }
-        data.visitEnd();
+    public static void writeAnnotationData(
+            @NotNull AnnotationVisitor av, @NotNull MessageLite message, @NotNull JvmStringTable stringTable
+    ) {
+        writeAnnotationData(av, BitEncoding.encodeBytes(DescriptorSerializer.serialize(message, stringTable)), stringTable.getStrings());
+    }
 
-        AnnotationVisitor strings = av.visitArray(JvmAnnotationNames.METADATA_STRINGS_FIELD_NAME);
-        for (String string : ((JvmStringTable) serializer.getStringTable()).getStrings()) {
-            strings.visit(null, string);
+    public static void writeAnnotationData(
+            @NotNull AnnotationVisitor av, @NotNull String[] data, @NotNull List<String> strings
+    ) {
+        AnnotationVisitor dataVisitor = av.visitArray(JvmAnnotationNames.METADATA_DATA_FIELD_NAME);
+        for (String string : data) {
+            dataVisitor.visit(null, string);
         }
-        strings.visitEnd();
+        dataVisitor.visitEnd();
+
+        AnnotationVisitor stringsVisitor = av.visitArray(JvmAnnotationNames.METADATA_STRINGS_FIELD_NAME);
+        for (String string : strings) {
+            stringsVisitor.visit(null, string);
+        }
+        stringsVisitor.visitEnd();
     }
 
     @NotNull

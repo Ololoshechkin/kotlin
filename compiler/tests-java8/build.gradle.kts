@@ -4,8 +4,10 @@ apply { plugin("kotlin") }
 
 dependencies {
     testCompile(projectTests(":compiler:tests-common"))
+    testCompile(intellijCoreDep()) { includeJars("intellij-core") }
     testCompile(projectTests(":generators:test-generator"))
     testRuntime(projectDist(":kotlin-reflect"))
+    testRuntime(intellijDep())
 }
 
 sourceSets {
@@ -20,8 +22,7 @@ tasks.withType<KotlinCompile> {
 
 projectTest {
     executable = "${rootProject.extra["JDK_18"]!!}/bin/java"
-    dependsOnTaskIfExistsRec("dist", project = rootProject)
-    dependsOn(":prepare:mock-runtime-for-test:dist")
+    dependsOn(":dist")
     workingDir = rootDir
     systemProperty("kotlin.test.script.classpath", the<JavaPluginConvention>().sourceSets.getByName("test").output.classesDirs.joinToString(File.pathSeparator))
 }

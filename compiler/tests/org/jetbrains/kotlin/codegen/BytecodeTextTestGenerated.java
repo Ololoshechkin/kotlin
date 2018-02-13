@@ -782,6 +782,12 @@ public class BytecodeTextTestGenerated extends AbstractBytecodeTextTest {
             String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/bytecodeText/checkcast/kt15411.kt");
             doTest(fileName);
         }
+
+        @TestMetadata("kt22714.kt")
+        public void testKt22714() throws Exception {
+            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/bytecodeText/checkcast/kt22714.kt");
+            doTest(fileName);
+        }
     }
 
     @TestMetadata("compiler/testData/codegen/bytecodeText/coercionToUnitOptimization")
@@ -1266,6 +1272,21 @@ public class BytecodeTextTestGenerated extends AbstractBytecodeTextTest {
         @TestMetadata("localFun.kt")
         public void testLocalFun() throws Exception {
             String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/bytecodeText/directInvoke/localFun.kt");
+            doTest(fileName);
+        }
+    }
+
+    @TestMetadata("compiler/testData/codegen/bytecodeText/enum")
+    @TestDataPath("$PROJECT_ROOT")
+    @RunWith(JUnit3RunnerWithInners.class)
+    public static class Enum extends AbstractBytecodeTextTest {
+        public void testAllFilesPresentInEnum() throws Exception {
+            KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/codegen/bytecodeText/enum"), Pattern.compile("^(.+)\\.kt$"), TargetBackend.ANY, true);
+        }
+
+        @TestMetadata("kt18731.kt")
+        public void testKt18731() throws Exception {
+            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/bytecodeText/enum/kt18731.kt");
             doTest(fileName);
         }
     }
@@ -1882,6 +1903,81 @@ public class BytecodeTextTestGenerated extends AbstractBytecodeTextTest {
                 String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/bytecodeText/inline/property/simple.kt");
                 doTest(fileName);
             }
+        }
+    }
+
+    @TestMetadata("compiler/testData/codegen/bytecodeText/inlineClasses")
+    @TestDataPath("$PROJECT_ROOT")
+    @RunWith(JUnit3RunnerWithInners.class)
+    public static class InlineClasses extends AbstractBytecodeTextTest {
+        public void testAllFilesPresentInInlineClasses() throws Exception {
+            KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/codegen/bytecodeText/inlineClasses"), Pattern.compile("^(.+)\\.kt$"), TargetBackend.ANY, true);
+        }
+
+        @TestMetadata("boxUnboxInlineClassFromMethodReturnType.kt")
+        public void testBoxUnboxInlineClassFromMethodReturnType() throws Exception {
+            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/bytecodeText/inlineClasses/boxUnboxInlineClassFromMethodReturnType.kt");
+            doTest(fileName);
+        }
+
+        @TestMetadata("boxUnboxInsideLambdaAsLastExpression.kt")
+        public void testBoxUnboxInsideLambdaAsLastExpression() throws Exception {
+            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/bytecodeText/inlineClasses/boxUnboxInsideLambdaAsLastExpression.kt");
+            doTest(fileName);
+        }
+
+        @TestMetadata("callMemberMethodsInsideInlineClass.kt")
+        public void testCallMemberMethodsInsideInlineClass() throws Exception {
+            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/bytecodeText/inlineClasses/callMemberMethodsInsideInlineClass.kt");
+            doTest(fileName);
+        }
+
+        @TestMetadata("checkOuterInlineFunctionCall.kt")
+        public void testCheckOuterInlineFunctionCall() throws Exception {
+            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/bytecodeText/inlineClasses/checkOuterInlineFunctionCall.kt");
+            doTest(fileName);
+        }
+
+        @TestMetadata("inlineClassBoxingOnAssignment.kt")
+        public void testInlineClassBoxingOnAssignment() throws Exception {
+            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/bytecodeText/inlineClasses/inlineClassBoxingOnAssignment.kt");
+            doTest(fileName);
+        }
+
+        @TestMetadata("inlineClassBoxingOnFunctionCall.kt")
+        public void testInlineClassBoxingOnFunctionCall() throws Exception {
+            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/bytecodeText/inlineClasses/inlineClassBoxingOnFunctionCall.kt");
+            doTest(fileName);
+        }
+
+        @TestMetadata("inlineClassBoxingUnboxingInsideInlinedLambda.kt")
+        public void testInlineClassBoxingUnboxingInsideInlinedLambda() throws Exception {
+            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/bytecodeText/inlineClasses/inlineClassBoxingUnboxingInsideInlinedLambda.kt");
+            doTest(fileName);
+        }
+
+        @TestMetadata("inlineClassesUnboxingAfterAssertionOperator.kt")
+        public void testInlineClassesUnboxingAfterAssertionOperator() throws Exception {
+            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/bytecodeText/inlineClasses/inlineClassesUnboxingAfterAssertionOperator.kt");
+            doTest(fileName);
+        }
+
+        @TestMetadata("unboxInlineClassAfterElvis.kt")
+        public void testUnboxInlineClassAfterElvis() throws Exception {
+            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/bytecodeText/inlineClasses/unboxInlineClassAfterElvis.kt");
+            doTest(fileName);
+        }
+
+        @TestMetadata("unboxInlineClassAfterSafeCall.kt")
+        public void testUnboxInlineClassAfterSafeCall() throws Exception {
+            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/bytecodeText/inlineClasses/unboxInlineClassAfterSafeCall.kt");
+            doTest(fileName);
+        }
+
+        @TestMetadata("unboxInlineClassesAfterSmartCasts.kt")
+        public void testUnboxInlineClassesAfterSmartCasts() throws Exception {
+            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/bytecodeText/inlineClasses/unboxInlineClassesAfterSmartCasts.kt");
+            doTest(fileName);
         }
     }
 

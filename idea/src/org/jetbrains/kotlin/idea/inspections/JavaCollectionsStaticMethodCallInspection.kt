@@ -24,6 +24,7 @@ import org.jetbrains.kotlin.resolve.calls.callUtil.getResolvedCall
 import org.jetbrains.kotlin.resolve.calls.callUtil.getType
 import org.jetbrains.kotlin.resolve.descriptorUtil.fqNameSafe
 import org.jetbrains.kotlin.resolve.lazy.BodyResolveMode
+import org.jetbrains.kotlin.types.KotlinType
 
 class JavaCollectionsStaticMethodInspection : AbstractKotlinInspection() {
     override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean): PsiElementVisitor {
@@ -32,19 +33,19 @@ class JavaCollectionsStaticMethodInspection : AbstractKotlinInspection() {
             val args = callExpression.valueArguments
             val firstArg = args.firstOrNull() ?: return
             val context = expression.analyze(BodyResolveMode.PARTIAL)
-            if (KotlinBuiltIns.FQ_NAMES.mutableList !=
-                    firstArg.getArgumentExpression()?.getType(context)?.constructor?.declarationDescriptor?.fqNameSafe) return
+            if (firstArg.getArgumentExpression()?.getType(context)?.isMutableListOrSubtype() != true) return
 
-            val resolvedCall = expression.getResolvedCall(context) ?: return
-            val descriptor = resolvedCall.resultingDescriptor as? JavaMethodDescriptor ?: return
+            val descriptor = expression.getResolvedCall(context)?.resultingDescriptor as? JavaMethodDescriptor ?: return
             val fqName = descriptor.importableFqName?.asString() ?: return
             if (!canReplaceWithStdLib(expression, fqName, args)) return
 
             val methodName = fqName.split(".").last()
-            holder.registerProblem(expression,
-                                   "Java Collections static method call should be replaced with Kotlin stdlib",
-                                   ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
-                                   ReplaceWithStdLibFix(methodName, firstArg.text))
+            holder.registerProblem(
+                expression,
+                "Java Collections static method call should be replaced with Kotlin stdlib",
+                ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
+                ReplaceWithStdLibFix(methodName, firstArg.text)
+            )
         })
     }
 
@@ -69,6 +70,13 @@ class JavaCollectionsStaticMethodInspection : AbstractKotlinInspection() {
 
 }
 
+private fun KotlinType.isMutableList() =
+    constructor.declarationDescriptor?.fqNameSafe == KotlinBuiltIns.FQ_NAMES.mutableList
+
+private fun KotlinType.isMutableListOrSubtype(): Boolean {
+    return isMutableList() || constructor.supertypes.reversed().any { it.isMutableList() }
+}
+
 private class ReplaceWithStdLibFix(private val methodName: String, private val receiver: String) : LocalQuickFix {
     override fun getName() = "Replace with $receiver.$methodName"
 
@@ -82,13 +90,14 @@ private class ReplaceWithStdLibFix(private val methodName: String, private val r
         val secondArg = valueArguments.getOrNull(1)?.getArgumentExpression()
         val factory = KtPsiFactory(project)
         val newExpression = if (secondArg != null) {
-            if (methodName == "sort")
+            if (methodName == "sort") {
                 factory.createExpressionByPattern("$0.sortWith(Comparator $1)", firstArg, secondArg.text)
-            else
+            } else {
                 factory.createExpressionByPattern("$0.$methodName($1)", firstArg, secondArg)
-        }
-        else
+            }
+        } else {
             factory.createExpressionByPattern("$0.$methodName()", firstArg)
+        }
         expression.replace(newExpression)
     }
 }

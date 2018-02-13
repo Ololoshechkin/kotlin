@@ -12,7 +12,7 @@ dependencies {
     compile(project(":kotlin-test:kotlin-test-jvm"))
     compileOnly(project(":kotlin-reflect-api"))
     compile(commonDep("junit:junit"))
-    compile(ideaSdkDeps("openapi", "idea"))
+    compileOnly(intellijDep()) { includeJars("openapi", "idea", "log4j") }
 }
 
 sourceSets {

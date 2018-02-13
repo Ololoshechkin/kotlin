@@ -9,7 +9,8 @@ dependencies {
     compile(project(":compiler:frontend.java"))
     compile(project(":compiler:frontend.script"))
     compileOnly(project(":kotlin-reflect-api"))
-    compile(ideaSdkCoreDeps(*(rootProject.extra["ideaCoreSdkJars"] as Array<String>)))
+    compileOnly(intellijCoreDep()) { includeJars("intellij-core") }
+    compileOnly(intellijDep()) { includeIntellijCoreJarDependencies(project) }
 }
 
 sourceSets {

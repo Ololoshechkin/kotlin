@@ -26,6 +26,7 @@ import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.roots.impl.libraries.LibraryEx
 import com.intellij.openapi.util.text.StringUtil
+import com.intellij.util.PathUtil
 import org.jetbrains.kotlin.cli.common.arguments.K2JSCompilerArguments
 import org.jetbrains.kotlin.cli.common.arguments.K2JVMCompilerArguments
 import org.jetbrains.kotlin.cli.common.arguments.K2MetadataCompilerArguments
@@ -39,6 +40,7 @@ import org.jetbrains.kotlin.idea.framework.CommonLibraryKind
 import org.jetbrains.kotlin.idea.framework.JSLibraryKind
 import org.jetbrains.kotlin.idea.framework.KotlinSdkType
 import org.jetbrains.kotlin.idea.util.projectStructure.allModules
+import org.jetbrains.kotlin.test.KotlinTestUtils
 import org.junit.Assert
 import org.junit.Test
 import java.io.File
@@ -1010,7 +1012,7 @@ compileTestKotlin {
             apply plugin: 'com.android.application'
 
             android {
-                compileSdkVersion 23
+                compileSdkVersion 26
                 buildToolsVersion "23.0.1"
 
                 defaultConfig {
@@ -1108,7 +1110,7 @@ compileTestKotlin {
             include ':js-module'
         """)
         createProjectSubFile("local.properties", """
-            sdk.dir=/${StringUtil.escapeBackSlashes(File(homePath).parent + "/dependencies/androidSDK")}
+            sdk.dir=/${KotlinTestUtils.getAndroidSdkSystemIndependentPath()}
         """)
         importProject()
 
@@ -1145,7 +1147,7 @@ compileTestKotlin {
             apply plugin: 'kotlin-android'
 
             android {
-                compileSdkVersion 23
+                compileSdkVersion 26
                 buildToolsVersion "23.0.1"
 
                 defaultConfig {
@@ -1177,7 +1179,7 @@ compileTestKotlin {
             }
         """)
         createProjectSubFile("local.properties", """
-            sdk.dir=/${StringUtil.escapeBackSlashes(File(homePath).parent + "/dependencies/androidSDK")}
+            sdk.dir=/${KotlinTestUtils.getAndroidSdkSystemIndependentPath()}
         """)
         createProjectSubFile("src/main/AndroidManifest.xml", """
             <manifest xmlns:android="http://schemas.android.com/apk/res/android"

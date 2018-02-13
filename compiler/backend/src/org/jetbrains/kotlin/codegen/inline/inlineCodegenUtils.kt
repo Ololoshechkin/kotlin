@@ -1,23 +1,11 @@
 /*
- * Copyright 2010-2015 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license
+ * that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.codegen.inline
 
 import com.intellij.openapi.vfs.VirtualFile
-import org.jetbrains.kotlin.backend.common.descriptors.substitute
 import org.jetbrains.kotlin.builtins.KotlinBuiltIns
 import org.jetbrains.kotlin.codegen.AsmUtil
 import org.jetbrains.kotlin.codegen.BaseExpressionCodegen
@@ -52,7 +40,9 @@ import org.jetbrains.kotlin.resolve.jvm.AsmTypes.JAVA_CLASS_TYPE
 import org.jetbrains.kotlin.resolve.jvm.JvmClassName
 import org.jetbrains.kotlin.resolve.source.PsiSourceElement
 import org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedCallableMemberDescriptor
-import org.jetbrains.kotlin.types.*
+import org.jetbrains.kotlin.types.KotlinType
+import org.jetbrains.kotlin.types.TypeProjectionImpl
+import org.jetbrains.kotlin.types.TypeSubstitutor
 import org.jetbrains.kotlin.util.OperatorNameConventions
 import org.jetbrains.kotlin.utils.addToStdlib.safeAs
 import org.jetbrains.org.objectweb.asm.*
@@ -91,7 +81,8 @@ private const val INLINE_MARKER_FINALLY_START = "finallyStart"
 private const val INLINE_MARKER_FINALLY_END = "finallyEnd"
 private const val INLINE_MARKER_BEFORE_SUSPEND_ID = 0
 private const val INLINE_MARKER_AFTER_SUSPEND_ID = 1
-private const val INLINE_MARKET_RETURNS_UNIT = 2
+private const val INLINE_MARKER_RETURNS_UNIT = 2
+private const val INLINE_MARKER_FAKE_CONTINUATION = 3
 private val INTRINSIC_ARRAY_CONSTRUCTOR_TYPE = AsmUtil.asmTypeByClassId(classId)
 
 internal fun getMethodNode(
@@ -191,12 +182,12 @@ private fun getInlineName(
             return implementationOwnerInternalName
         }
         is ClassifierDescriptor -> {
-            return typeMapper.mapType(currentDescriptor).internalName
+            return typeMapper.mapClass(currentDescriptor).internalName
         }
         is FunctionDescriptor -> {
             val descriptor = typeMapper.bindingContext.get(CodegenBinding.CLASS_FOR_CALLABLE, currentDescriptor)
             if (descriptor != null) {
-                return typeMapper.mapType(descriptor).internalName
+                return typeMapper.mapClass(descriptor).internalName
             }
         }
     }
@@ -224,14 +215,25 @@ internal fun isWhenMappingAccess(internalName: String, fieldName: String): Boole
 internal fun isAnonymousSingletonLoad(internalName: String, fieldName: String): Boolean =
         JvmAbi.INSTANCE_FIELD == fieldName && isAnonymousClass(internalName)
 
-internal fun isSamWrapper(internalName: String) =
+/*
+ * Note that sam wrapper prior to 1.2.30 was generated with next template name (that was included suffix hash):
+ * int hash = PackagePartClassUtils.getPathHashCode(containingFile.getVirtualFile()) * 31 + DescriptorUtils.getFqNameSafe(descriptor).hashCode();
+ *  String shortName = String.format(
+ *       "%s$sam$%s%s$%08x",
+ *       outermostOwner.shortName().asString(),
+ *       descriptor.getName().asString(),
+ *       (isInsideInline ? "$i" : ""),
+ *       hash
+ *  );
+ */
+internal fun isOldSamWrapper(internalName: String) =
         internalName.contains("\$sam$") && internalName.substringAfter("\$i$", "").run { length == 8 && toLongOrNull(16) != null }
 
 internal fun isSamWrapperConstructorCall(internalName: String, methodName: String) =
-        isConstructor(methodName) && isSamWrapper(internalName)
+        isConstructor(methodName) && isOldSamWrapper(internalName)
 
 internal fun isAnonymousClass(internalName: String) =
-        !isSamWrapper(internalName) &&
+        !isOldSamWrapper(internalName) &&
         internalName.substringAfterLast('/').substringAfterLast("$", "").isInteger()
 
 fun wrapWithMaxLocalCalc(methodNode: MethodNode) =
@@ -421,7 +423,7 @@ internal fun addSuspendMarker(v: InstructionAdapter, isStartNotEnd: Boolean) {
 }
 
 private fun addReturnsUnitMarker(v: InstructionAdapter) {
-    v.iconst(INLINE_MARKET_RETURNS_UNIT)
+    v.iconst(INLINE_MARKER_RETURNS_UNIT)
     v.visitMethodInsn(
             Opcodes.INVOKESTATIC, INLINE_MARKER_CLASS_NAME,
             "mark",
@@ -429,9 +431,26 @@ private fun addReturnsUnitMarker(v: InstructionAdapter) {
     )
 }
 
+/* There are contexts when the continuation does not yet exist, for example, in inline lambdas, which are going to
+ * be inlined into suspendable functions.
+ * In such cases we just generate the marker which is going to be replaced with real continuation on generating state machine.
+ * See [CoroutineTransformerMethodVisitor] for more info.
+ */
+internal fun addFakeContinuationMarker(v: InstructionAdapter) {
+    v.iconst(INLINE_MARKER_FAKE_CONTINUATION)
+    v.invokestatic(
+        INLINE_MARKER_CLASS_NAME,
+        "mark",
+        "(I)V", false
+    )
+    v.aconst(null)
+}
+
 internal fun isBeforeSuspendMarker(insn: AbstractInsnNode) = isSuspendMarker(insn, INLINE_MARKER_BEFORE_SUSPEND_ID)
 internal fun isAfterSuspendMarker(insn: AbstractInsnNode) = isSuspendMarker(insn, INLINE_MARKER_AFTER_SUSPEND_ID)
-internal fun isReturnsUnitMarker(insn: AbstractInsnNode) = isSuspendMarker(insn, INLINE_MARKET_RETURNS_UNIT)
+internal fun isReturnsUnitMarker(insn: AbstractInsnNode) = isSuspendMarker(insn, INLINE_MARKER_RETURNS_UNIT)
+internal fun isFakeContinuationMarker(insn: AbstractInsnNode) =
+    insn.previous != null && isSuspendMarker(insn.previous, INLINE_MARKER_FAKE_CONTINUATION) && insn.opcode == Opcodes.ACONST_NULL
 
 private fun isSuspendMarker(insn: AbstractInsnNode, id: Int) =
         isInlineMarker(insn, "mark") && insn.previous.intConstant == id
