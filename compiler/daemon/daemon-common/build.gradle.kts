@@ -12,11 +12,10 @@ dependencies {
     compileOnly(intellijCoreDep()) { includeJars("intellij-core") }
     compileOnly(intellijDep()) { includeIntellijCoreJarDependencies(project) }
     compile(commonDep("org.jetbrains.kotlinx", "kotlinx-coroutines-jdk8")) { isTransitive = false }
-    compileOnly("io.ktor:ktor-network:0.9.1-alpha-10")
+    compile("io.ktor:ktor-network:0.9.1-alpha-10")
 }
 
 sourceSets {
     "main" { projectDefault() }
     "test" {}
 }
-
