@@ -24,8 +24,8 @@ buildscript {
             "http://dl.bintray.com/kotlin/kotlinx",
             "https://repo.gradle.org/gradle/libs-releases-local", // for native-platform
             "https://jetbrains.bintray.com/intellij-third-party-dependencies", // for jflex
-            "https://dl.bintray.com/jetbrains/markdown" // for org.jetbrains:markdown
-    )
+            "https://dl.bintray.com/jetbrains/markdown", // for org.jetbrains:markdown
+            "http://dl.bintray.com/kotlin/ktor") // for ktor
 
     extra["repos"] = repos
 
