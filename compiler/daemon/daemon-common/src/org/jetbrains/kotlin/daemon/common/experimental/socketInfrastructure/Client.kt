@@ -29,9 +29,9 @@ class DefaultClient(
         @Transient get
         @Transient set
 
-    override fun sendMessage(msg: Any) = async { output!!.writeObject(msg) }
+    override fun sendMessage(msg: Any) = async { output.writeObject(msg) }
 
-    override fun <T> readMessage() = async { input!!.nextObject() as T }
+    override fun <T> readMessage() = async { input.nextObject() as T }
 
     override fun connectToServer() {
         runBlocking {

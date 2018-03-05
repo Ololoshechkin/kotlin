@@ -46,7 +46,7 @@ class LogStream(name: String) : OutputStream() {
     }
 }
 
-object KotlinCompileDaemonSockets {
+object KotlinCompileDaemon {
 
     init {
         val logTime: String = SimpleDateFormat("yyyy-MM-dd.HH-mm-ss-SSS").format(Date())
@@ -72,7 +72,7 @@ object KotlinCompileDaemonSockets {
     val log by lazy { Logger.getLogger("daemon") }
 
     private fun loadVersionFromResource(): String? {
-        (KotlinCompileDaemonSockets::class.java.classLoader as? URLClassLoader)
+        (KotlinCompileDaemon::class.java.classLoader as? URLClassLoader)
             ?.findResource("META-INF/MANIFEST.MF")
             ?.let {
                 try {

@@ -52,8 +52,9 @@ class DefaultServer<out ServerType : ServerBase> (val serverPort: Int) : Server<
                 when (processMessage(input.nextObject() as Server.AnyMessage<ServerType>, output)) {
                     Server.State.CLOSED -> break@loop
                     Server.State.ERROR -> {
-                        // TODO: debug message "Server error: invalid message"
+                        // TODO println("Server error: invalid message")
                     }
+                    else -> continue@loop
                 }
             }
         }

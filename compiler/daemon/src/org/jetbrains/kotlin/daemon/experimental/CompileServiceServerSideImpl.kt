@@ -689,7 +689,7 @@ class CompileServiceServerSideImpl(
                     runFile,
                     filter = { _, p -> p != port },
                     report = { _, msg -> log.info(msg) }, useRMI = false
-                ).await().toList()
+                )
                 val comparator = compareByDescending<DaemonWithMetadataAsync, DaemonJVMOptions>(
                     DaemonJVMOptionsMemoryComparator(),
                     { it.jvmOptions }
