@@ -286,10 +286,10 @@ object KotlinCompilerClient {
                     }}"
                 )
             }
-            else -> {
+            else -> runBlocking {
                 println("Executing daemon compilation with args: " + filteredArgs.joinToString(" "))
                 val servicesFacade = CompilerCallbackServicesFacadeServerSide()
-                servicesFacade.runServer()
+                val serverRun = servicesFacade.runServer()
                 try {
                     val memBefore = runBlocking { daemon.getUsedMemory().get() } / 1024
                     val startTime = System.nanoTime()
@@ -326,27 +326,26 @@ object KotlinCompilerClient {
                         }
 
                     }
-                    runBlocking {
-                        val res = daemon.compile(
-                            CompileService.NO_SESSION,
-                            filteredArgs.toList().toTypedArray(),
-                            CompilationOptions(
-                                CompilerMode.NON_INCREMENTAL_COMPILER,
-                                CompileService.TargetPlatform.JVM,
-                                arrayOf(),  // TODO ???
-                                ReportSeverity.INFO.code,  // TODO ???
-                                arrayOf() // TODO ???
-                            ),
-                            servicesFacade.clientSide,
-                            compResults.clientSide
-                        )
+                    val res = daemon.compile(
+                        CompileService.NO_SESSION,
+                        filteredArgs.toList().toTypedArray(),
+                        CompilationOptions(
+                            CompilerMode.NON_INCREMENTAL_COMPILER,
+                            CompileService.TargetPlatform.JVM,
+                            arrayOf(),  // TODO ???
+                            ReportSeverity.INFO.code,  // TODO ???
+                            arrayOf() // TODO ???
+                        ),
+                        servicesFacade.clientSide,
+                        compResults.clientSide
+                    )
 
-                        val endTime = System.nanoTime()
-                        println("Compilation ${if (res.isGood) "succeeded" else "failed"}, result code: ${res.get()}")
-                        val memAfter = daemon.getUsedMemory().get() / 1024
-                        println("Compilation time: " + TimeUnit.NANOSECONDS.toMillis(endTime - startTime) + " ms")
-                        println("Used memory $memAfter (${"%+d".format(memAfter - memBefore)} kb)")
-                    }
+                    val endTime = System.nanoTime()
+                    println("Compilation ${if (res.isGood) "succeeded" else "failed"}, result code: ${res.get()}")
+                    val memAfter = daemon.getUsedMemory().get() / 1024
+                    println("Compilation time: " + TimeUnit.NANOSECONDS.toMillis(endTime - startTime) + " ms")
+                    println("Used memory $memAfter (${"%+d".format(memAfter - memBefore)} kb)")
+                    serverRun.await()
                 } finally {
                     // TODO ??
                 }
