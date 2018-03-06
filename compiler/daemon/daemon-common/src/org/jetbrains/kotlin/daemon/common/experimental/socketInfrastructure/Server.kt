@@ -2,8 +2,8 @@ package org.jetbrains.kotlin.daemon.common.experimental.socketInfrastructure
 
 import io.ktor.network.sockets.Socket
 import io.ktor.network.sockets.aSocket
+import kotlinx.coroutines.experimental.Deferred
 import kotlinx.coroutines.experimental.async
-import kotlinx.coroutines.experimental.runBlocking
 import java.io.Serializable
 import java.net.InetSocketAddress
 
@@ -31,7 +31,7 @@ interface Server<out T : ServerBase> : ServerBase {
 
     class EndConnectionMessage<ServerType : ServerBase> : AnyMessage<ServerType>
 
-    fun runServer()
+    fun runServer() : Deferred<Unit>
 
 }
 
@@ -59,17 +59,15 @@ class DefaultServer<out ServerType : ServerBase>(val serverPort: Int, val self: 
         }
     }
 
-    final override fun runServer() {
-        async {
-            aSocket().tcp().bind(InetSocketAddress(serverPort)).use { serverSocket ->
-                println("accepting clientSocket...")
-                while (true) {
-                    val client = serverSocket.accept()
-                    println("client accepted! (${client.remoteAddress})")
-                    attachClient(client)
-                }
+    final override fun runServer() = async {
+        aSocket().tcp().bind(InetSocketAddress(serverPort)).use { serverSocket ->
+            println("accepting clientSocket...")
+            while (true) {
+                val client = serverSocket.accept()
+                println("client accepted! (${client.remoteAddress})")
+                attachClient(client)
             }
-        }
+        }.let {}
     }
 
 }
