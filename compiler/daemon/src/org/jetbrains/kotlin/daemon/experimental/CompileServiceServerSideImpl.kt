@@ -9,6 +9,7 @@ import com.intellij.openapi.Disposable
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.impl.ZipHandler
 import com.intellij.openapi.vfs.impl.jar.CoreJarFileSystem
+import io.ktor.network.sockets.Socket
 import kotlinx.coroutines.experimental.async
 import kotlinx.coroutines.experimental.runBlocking
 import org.jetbrains.kotlin.build.JvmSourceRoot
@@ -33,6 +34,7 @@ import org.jetbrains.kotlin.daemon.KotlinJvmReplService
 import org.jetbrains.kotlin.daemon.LazyClasspathWatcher
 import org.jetbrains.kotlin.daemon.common.*
 import org.jetbrains.kotlin.daemon.common.experimental.*
+import org.jetbrains.kotlin.daemon.common.experimental.socketInfrastructure.ByteWriteChannelWrapper
 import org.jetbrains.kotlin.daemon.common.experimental.socketInfrastructure.DefaultServer
 import org.jetbrains.kotlin.daemon.common.experimental.socketInfrastructure.Server
 import org.jetbrains.kotlin.daemon.incremental.experimental.RemoteAnnotationsFileUpdaterAsync
@@ -97,7 +99,16 @@ class CompileServiceServerSideImpl(
     val port: Int,
     val timer: Timer,
     val onShutdown: () -> Unit
-) : CompileServiceServerSide, Server<CompileServiceServerSide> by DefaultServer(serverPort) {
+) : CompileServiceServerSide {
+
+    private val delegate = DefaultServer(serverPort, this)
+
+    override suspend fun processMessage(msg: Server.AnyMessage<in CompileServiceServerSide>, output: ByteWriteChannelWrapper) =
+        delegate.processMessage(msg, output)
+
+    override suspend fun attachClient(client: Socket) = delegate.attachClient(client)
+
+    override fun runServer() = delegate.runServer()
 
     private val log by lazy { Logger.getLogger("compiler") }
 
