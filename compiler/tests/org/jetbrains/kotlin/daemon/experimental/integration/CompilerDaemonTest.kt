@@ -1,20 +1,9 @@
 /*
- * Copyright 2010-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license
+ * that can be found in the license/LICENSE.txt file.
  */
 
-package org.jetbrains.kotlin.daemon.experimental
+package org.jetbrains.kotlin.daemon.experimental.integration
 
 import junit.framework.TestCase
 import org.jetbrains.kotlin.cli.AbstractCliTest
@@ -47,7 +36,9 @@ import kotlin.script.experimental.dependencies.ScriptDependencies
 import kotlin.script.experimental.dependencies.asSuccess
 import kotlin.script.templates.ScriptTemplateDefinition
 import kotlin.test.fail
-import org.jetbrains.kotlin.daemon.ifNotContainsSequence
+import java.rmi.ConnectException
+import java.rmi.ConnectIOException
+import java.rmi.UnmarshalException
 
 
 val TIMEOUT_DAEMON_RUNNER_EXIT_MS = 10000L
@@ -208,7 +199,10 @@ class CompilerDaemonTest : KotlinIntegrationTestBase() {
             )
             assertEquals(myXmxVal, opts3.maxMemory)
         } finally {
-            restoreSystemProperty(COMPILE_DAEMON_JVM_OPTIONS_PROPERTY, backupJvmOptions)
+            restoreSystemProperty(
+                COMPILE_DAEMON_JVM_OPTIONS_PROPERTY,
+                backupJvmOptions
+            )
         }
     }
 
@@ -229,7 +223,7 @@ class CompilerDaemonTest : KotlinIntegrationTestBase() {
             val daemonOptions = makeTestDaemonOptions(getTestName(true))
             val compilerId2 = CompilerId.makeCompilerId(
                 compilerClassPath +
-                        File(KotlinIntegrationTestBase.getCompilerLib(), "kotlin-compiler-sources.jar")
+                        File(getCompilerLib(), "kotlin-compiler-sources.jar")
             )
 
             withLogFile("kotlin-daemon1-test") { logFile1 ->
@@ -724,7 +718,10 @@ class CompilerDaemonTest : KotlinIntegrationTestBase() {
         fun connectThread(threadNo: Int) = thread(name = "daemonConnect$threadNo") {
             try {
                 withFlagFile(getTestName(true), ".alive") { flagFile ->
-                    withLogFile("kotlin-daemon-test", printLogOnException = false) { logFile ->
+                    withLogFile(
+                        "kotlin-daemon-test",
+                        printLogOnException = false
+                    ) { logFile ->
                         logFiles[threadNo] = logFile
                         val daemonJVMOptions = makeTestDaemonJvmOptions(logFile)
                         val compileServiceSession =
@@ -836,11 +833,11 @@ class CompilerDaemonTest : KotlinIntegrationTestBase() {
                 try {
                     daemon!!.getUsedMemory()
                     null
-                } catch (e: java.rmi.ConnectException) {
+                } catch (e: ConnectException) {
                     e
-                } catch (e: java.rmi.UnmarshalException) {
+                } catch (e: UnmarshalException) {
                     e
-                } catch (e: java.rmi.ConnectIOException) {
+                } catch (e: ConnectIOException) {
                     e
                 }
             assertNotNull(exception)
@@ -1151,7 +1148,7 @@ internal fun classpathFromClassloader(): List<File> {
         ?.map { File(it) }.orEmpty()
     return ((TestKotlinScriptDummyDependenciesResolver::class.java.classLoader as? URLClassLoader)?.urLs
         ?.mapNotNull(URL::toFile)
-        ?.filter { it.path.contains("out") && it.path.contains("test") }
+        ?.filter { it.path.contains("out") && it.path.contains("") }
             ?: emptyList()
             ) + additionalClasspath
 }

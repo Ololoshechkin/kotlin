@@ -14,3 +14,5 @@ val CALLBACK_SERVER_PORTS_RANGE_END: Int = 16000
 
 val RESULTS_SERVER_PORTS_RANGE_START: Int = 16001
 val RESULTS_SERVER_PORTS_RANGE_END: Int = 17000
+
+val COMPILER_DAEMON_CLASS_FQN_EXPERIMENTAL: String = "org.jetbrains.kotlin.daemon.experimental.KotlinCompileDaemon"

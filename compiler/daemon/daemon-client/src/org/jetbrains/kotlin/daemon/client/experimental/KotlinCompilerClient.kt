@@ -178,8 +178,9 @@ object KotlinCompilerClient {
         port: Int = findCallbackServerSocket(),
         profiler: Profiler = DummyProfiler()
     ): Int = profiler.withMeasure(this) {
-        val services = BasicCompilerServicesWithResultsFacadeServerServerSide(messageCollector, outputsCollector, port)
         runBlocking {
+            val services = BasicCompilerServicesWithResultsFacadeServerServerSide(messageCollector, outputsCollector, port)
+            val serverRun = services.runServer()
             compilerService.compile(
                 sessionId,
                 args,
@@ -326,6 +327,7 @@ object KotlinCompilerClient {
                         }
 
                     }
+                    val compResultsServerRun = compResults.runServer()
                     val res = daemon.compile(
                         CompileService.NO_SESSION,
                         filteredArgs.toList().toTypedArray(),
@@ -345,7 +347,7 @@ object KotlinCompilerClient {
                     val memAfter = daemon.getUsedMemory().get() / 1024
                     println("Compilation time: " + TimeUnit.NANOSECONDS.toMillis(endTime - startTime) + " ms")
                     println("Used memory $memAfter (${"%+d".format(memAfter - memBefore)} kb)")
-                    serverRun.await()
+//                    serverRun.await()
                 } finally {
                     // TODO ??
                 }
@@ -463,7 +465,7 @@ object KotlinCompilerClient {
         ) +
                 platformSpecificOptions +
                 daemonJVMOptions.mappers.flatMap { it.toArgs("-") } +
-                COMPILER_DAEMON_CLASS_FQN +
+                COMPILER_DAEMON_CLASS_FQN_EXPERIMENTAL +
                 daemonOptions.mappers.flatMap { it.toArgs(COMPILE_DAEMON_CMDLINE_OPTIONS_PREFIX) } +
                 compilerId.mappers.flatMap { it.toArgs(COMPILE_DAEMON_CMDLINE_OPTIONS_PREFIX) }
         println("in startDaemon() - 1")
