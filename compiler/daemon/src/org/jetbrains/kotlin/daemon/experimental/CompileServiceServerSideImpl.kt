@@ -113,6 +113,9 @@ class CompileServiceServerSideImpl(
     private val log by lazy { Logger.getLogger("compiler") }
 
     init {
+
+        KotlinCompileDaemon.externalReport("init", "CompileServiceServerSideImpl")
+
         // assuming logically synchronized
         System.setProperty(KOTLIN_COMPILER_ENVIRONMENT_KEEPALIVE_PROPERTY, "true")
 
@@ -127,9 +130,6 @@ class CompileServiceServerSideImpl(
         timer.schedule(delay = DAEMON_PERIODIC_SELDOM_CHECK_INTERVAL_MS + 100, period = DAEMON_PERIODIC_SELDOM_CHECK_INTERVAL_MS) {
             exceptionLoggingTimerThread { periodicSeldomCheck() }
         }
-
-        // server stuff :
-        runServer()
 
     }
 
@@ -275,6 +275,7 @@ class CompileServiceServerSideImpl(
             throw IllegalStateException("Unable to create runServer file '${runFile.absolutePath}'", e)
         }
         runFile.deleteOnExit()
+        KotlinCompileDaemon.externalReport("last_init_end", "CompileServiceServerSideImpl")
     }
 
     // RMI-exposed API
