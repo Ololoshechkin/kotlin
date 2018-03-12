@@ -59,15 +59,18 @@ class DefaultServer<out ServerType : ServerBase>(val serverPort: Int, val self: 
         }
     }
 
-    final override fun runServer() = async {
-        aSocket().tcp().bind(InetSocketAddress(serverPort)).use { serverSocket ->
-            println("accepting clientSocket...")
-            while (true) {
-                val client = serverSocket.accept()
-                println("client accepted! (${client.remoteAddress})")
-                attachClient(client)
+    final override fun runServer(): Deferred<Unit> {
+        Report.log("binding to address($serverPort)", "DefaultSetver")
+        return aSocket().tcp().bind(InetSocketAddress(serverPort)).use { serverSocket ->
+            async {
+                Report.log("accepting clientSocket...", "DefaultSetver")
+                while (true) {
+                    val client = serverSocket.accept()
+                    Report.log("client accepted! (${client.remoteAddress})", "DefaultServer")
+                    attachClient(client)
+                }
             }
-        }.let {}
+        }
     }
 
 }

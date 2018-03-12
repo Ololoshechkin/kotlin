@@ -9,6 +9,7 @@ package org.jetbrains.kotlin.daemon.common.experimental
 import kotlinx.coroutines.experimental.async
 import kotlinx.coroutines.experimental.runBlocking
 import org.jetbrains.kotlin.daemon.common.*
+import org.jetbrains.kotlin.daemon.common.experimental.socketInfrastructure.Report
 import java.io.File
 import java.rmi.registry.LocateRegistry
 
@@ -54,7 +55,7 @@ suspend fun walkDaemonsAsync(
                 )
                 println("found daemon on socketPort $port ($relativeAge ms old), trying to connect")
                 val daemon = tryConnectToDaemonAsync(port, report, useRMI)
-                println("daemon = $daemon")
+                println("daemon = $daemon (port= $port)")
                 // cleaning orphaned file; note: daemon should shut itself down if it detects that the runServer file is deleted
                 if (daemon == null) {
                     if (relativeAge - ORPHANED_RUN_FILE_AGE_THRESHOLD_MS <= 0) {
@@ -76,7 +77,7 @@ suspend fun walkDaemonsAsync(
                     }
                 }
                 try {
-                    println("try daemon = ...   ($daemon), daemon != null : ${daemon != null}")
+                    println("try daemon = ...   ($daemon(port=$port)), daemon != null : ${daemon != null}")
                     daemon
                         ?.let {
                             DaemonWithMetadataAsync(it, file, it.getDaemonJVMOptions().get())
@@ -98,6 +99,7 @@ suspend fun walkDaemonsAsync(
 
 private inline fun tryConnectToDaemonByRMI(port: Int, report: (DaemonReportCategory, String) -> Unit): CompileServiceClientSide? {
     try {
+        Report.log("tryConnectToDaemonByRMI(port = $port)", "ClientUtils")
         val daemon = LocateRegistry.getRegistry(
             LoopbackNetworkInterface.loopbackInetAddressName,
             port,
@@ -116,10 +118,16 @@ private inline fun tryConnectToDaemonByRMI(port: Int, report: (DaemonReportCateg
 
 private inline fun tryConnectToDaemonBySockets(port: Int, report: (DaemonReportCategory, String) -> Unit): CompileServiceClientSide? {
     try {
-        return CompileServiceClientSideImpl(
+        Report.log("tryConnectToDaemonBySockets(port = $port)", "ClientUtils")
+        val daemon = CompileServiceClientSideImpl(
             LoopbackNetworkInterface.loopbackInetAddressName,
             port
-        ).also { it.connectToServer() }
+        )
+        Report.log("daemon($port) = $daemon", "ClientUtils")
+        Report.log("daemon($port) connecting to server...", "ClientUtils")
+        daemon.connectToServer()
+        Report.log("OK - daemon($port) connected to server!!!", "ClientUtils")
+        return daemon
     } catch (e: Throwable) {
         report(DaemonReportCategory.INFO, "cannot find or connect to socket")
     }
@@ -132,6 +140,8 @@ private fun tryConnectToDaemonAsync(
     useRMI: Boolean = true
 ): CompileServiceClientSide? =
     tryConnectToDaemonBySockets(port, report)
-            ?: useRMI.takeIf { it }?.let { tryConnectToDaemonByRMI(port, report) }
+            ?: (useRMI.takeIf { it }?.let { tryConnectToDaemonByRMI(port, report) })
 
 private const val validFlagFileKeywordChars = "abcdefghijklmnopqrstuvwxyz0123456789-_"
+
+

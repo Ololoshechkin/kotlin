@@ -36,6 +36,7 @@ import org.jetbrains.kotlin.daemon.common.*
 import org.jetbrains.kotlin.daemon.common.experimental.*
 import org.jetbrains.kotlin.daemon.common.experimental.socketInfrastructure.ByteWriteChannelWrapper
 import org.jetbrains.kotlin.daemon.common.experimental.socketInfrastructure.DefaultServer
+import org.jetbrains.kotlin.daemon.common.experimental.socketInfrastructure.Report
 import org.jetbrains.kotlin.daemon.common.experimental.socketInfrastructure.Server
 import org.jetbrains.kotlin.daemon.incremental.experimental.RemoteAnnotationsFileUpdaterAsync
 import org.jetbrains.kotlin.daemon.incremental.experimental.RemoteArtifactChangesProviderAsync
@@ -65,9 +66,6 @@ import kotlin.concurrent.write
 
 fun nowSeconds() = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime())
 
-interface CompilerSelector {
-    operator fun get(targetPlatform: CompileService.TargetPlatform): CLICompiler<*>
-}
 
 interface EventManager {
     fun onCompilationFinished(f: () -> Unit)
@@ -101,6 +99,25 @@ class CompileServiceServerSideImpl(
     val onShutdown: () -> Unit
 ) : CompileServiceServerSide {
 
+    constructor(
+        serverPort: Int,
+        compilerId: CompilerId,
+        daemonOptions: DaemonOptions,
+        daemonJVMOptions: DaemonJVMOptions,
+        port: Int,
+        timer: Timer,
+        onShutdown: () -> Unit
+    ) : this(
+        serverPort,
+        CompilerSelector.getDefault(),
+        compilerId,
+        daemonOptions,
+        daemonJVMOptions,
+        port,
+        timer,
+        onShutdown
+    )
+
     private val delegate = DefaultServer(serverPort, this)
 
     override suspend fun processMessage(msg: Server.AnyMessage<in CompileServiceServerSide>, output: ByteWriteChannelWrapper) =
@@ -114,12 +131,12 @@ class CompileServiceServerSideImpl(
 
     init {
 
-        KotlinCompileDaemon.externalReport("init", "CompileServiceServerSideImpl")
+        Report.log("init(port= $serverPort)", "CompileServiceServerSideImpl")
 
         // assuming logically synchronized
         System.setProperty(KOTLIN_COMPILER_ENVIRONMENT_KEEPALIVE_PROPERTY, "true")
 
-        this.toRMIServer(daemonOptions, compilerId) // also create RMI server in order to support old clients
+        // TODO UNCOMMENT THIS : this.toRMIServer(daemonOptions, compilerId) // also create RMI server in order to support old clients
 
         timer.schedule(10) {
             exceptionLoggingTimerThread { initiateElections() }
@@ -261,6 +278,7 @@ class CompileServiceServerSideImpl(
     init {
         val runFileDir = File(daemonOptions.runFilesPathOrDefault)
         runFileDir.mkdirs()
+        Report.log("port.toString() = $port | serverPort = $serverPort", "CompileServiceServerSideImpl")
         runFile = File(
             runFileDir,
             makeRunFilenameString(
@@ -275,7 +293,7 @@ class CompileServiceServerSideImpl(
             throw IllegalStateException("Unable to create runServer file '${runFile.absolutePath}'", e)
         }
         runFile.deleteOnExit()
-        KotlinCompileDaemon.externalReport("last_init_end", "CompileServiceServerSideImpl")
+        Report.log("last_init_end", "CompileServiceServerSideImpl")
     }
 
     // RMI-exposed API
