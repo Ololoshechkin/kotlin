@@ -85,7 +85,7 @@ class CompileServiceClientSideImpl(
     }
 
     override suspend fun getDaemonJVMOptions(): CallResult<DaemonJVMOptions> {
-        println("sending message (GetDaemonJVMOptionsMessage) ...")
+        println("sending message (GetDaemonJVMOptionsMessage) ... (deaemon port = $serverPort)")
         sendMessage(GetDaemonJVMOptionsMessage()).await()
         println("message is sent!")
         val resAsync = readMessage<CallResult<DaemonJVMOptions>>()

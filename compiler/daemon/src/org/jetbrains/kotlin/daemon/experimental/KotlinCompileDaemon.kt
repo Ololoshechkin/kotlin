@@ -15,7 +15,7 @@ import org.jetbrains.kotlin.cli.jvm.K2JVMCompiler
 import org.jetbrains.kotlin.cli.metadata.K2MetadataCompiler
 import org.jetbrains.kotlin.daemon.common.*
 import org.jetbrains.kotlin.daemon.common.experimental.findPortForSocket
-import org.jetbrains.kotlin.daemon.experimental.KotlinCompileDaemon.externalReport
+import org.jetbrains.kotlin.daemon.common.experimental.socketInfrastructure.Report
 import java.awt.BorderLayout
 import java.awt.Label
 import java.io.File
@@ -56,19 +56,12 @@ class LogStream(name: String) : OutputStream() {
 
 object KotlinCompileDaemon {
 
-    private val _log_file = File("_LOG_.txt").printWriter()
-    init {
-        Timer().schedule(2000) {
-            _log_file.close()
-        }
-    }
-    public fun externalReport(debugString: String, classs: String = "NewKotlinCompileDaemon") {
-        _log_file.println("_$classs.$debugString")
-    }
-
     init {
 
-        externalReport("init")
+//        val f = File("_LOG_2_.txt").printWriter()
+//        File("_LOG_2_.txt").printWriter().println("[KotlinCompileDaemon] :  init")
+//        f.close()
+        Report.log("init", "KotlinCompileDaemon")
 
         val logTime: String = SimpleDateFormat("yyyy-MM-dd.HH-mm-ss-SSS").format(Date())
         val (logPath: String, fileIsGiven: Boolean) =
@@ -107,7 +100,7 @@ object KotlinCompileDaemon {
     @JvmStatic
     fun main(args: Array<String>) {
 
-        externalReport("main")
+        Report.log("main", "KotlinCompileDaemon")
 
         ensureServerHostnameIsSetUp()
 
@@ -141,7 +134,7 @@ object KotlinCompileDaemon {
                         prefix = COMPILE_DAEMON_CMDLINE_OPTIONS_PREFIX
                     )
 
-                externalReport("filteredArgs")
+                Report.log("filteredArgs", "KotlinCompileDaemon")
 
                 if (filteredArgs.any()) {
                     val helpLine = "usage: <daemon> <compilerId options> <daemon options>"
@@ -151,7 +144,7 @@ object KotlinCompileDaemon {
                     throw IllegalArgumentException("Unknown arguments: " + filteredArgs.joinToString(" "))
                 }
 
-                externalReport("starting_daemon")
+                Report.log("starting_daemon", "KotlinCompileDaemon")
                 log.info("starting daemon")
 
                 // TODO: find minimal set of permissions and restore security management
@@ -166,7 +159,7 @@ object KotlinCompileDaemon {
                     COMPILE_DAEMON_PORTS_RANGE_START,
                     COMPILE_DAEMON_PORTS_RANGE_END
                 )
-                externalReport("findPortForSocket(port_$port)")
+                Report.log("findPortForSocket() returned port= $port", "KotlinCompileDaemon")
 
 
                 val compilerSelector = object : CompilerSelector {
@@ -179,11 +172,11 @@ object KotlinCompileDaemon {
                         CompileService.TargetPlatform.METADATA -> metadata
                     }
                 }
-                externalReport("compilerSelector_ok")
+                Report.log("compilerSelector_ok", "KotlinCompileDaemon")
 
                 // timer with a daemon thread, meaning it should not prevent JVM to exit normally
                 val timer = Timer(true)
-                externalReport("_STARTING_COMPILE_SERVICE")
+                Report.log("_STARTING_COMPILE_SERVICE", "KotlinCompileDaemon")
                 val compilerService = CompileServiceServerSideImpl(
                     port,
                     compilerSelector,
@@ -204,10 +197,10 @@ object KotlinCompileDaemon {
                             timer.cancel()
                         }
                     })
-                externalReport("_COMPILE_SERVICE_STARTED")
-                externalReport("_compile_service_RUNNING_SEERVER")
+                Report.log("_COMPILE_SERVICE_STARTED", "KotlinCompileDaemon")
+                Report.log("_compile_service_RUNNING_SEERVER", "KotlinCompileDaemon")
                 serverRun = compilerService.runServer()
-                externalReport("_compile_service_SEERVER_IS_RUNNING")
+                Report.log("_compile_service_SEERVER_IS_RUNNING", "KotlinCompileDaemon")
 
 
                 println(COMPILE_DAEMON_IS_READY_MESSAGE)
@@ -228,9 +221,9 @@ object KotlinCompileDaemon {
                 // TODO consider exiting without throwing
                 throw e
             }
-            externalReport("awaiting")
+            Report.log("awaiting", "KotlinCompileDaemon")
             serverRun.await()
-            externalReport("downing")
+            Report.log("downing", "KotlinCompileDaemon")
         }
     }
 

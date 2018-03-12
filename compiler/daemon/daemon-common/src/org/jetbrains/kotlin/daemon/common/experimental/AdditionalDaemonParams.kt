@@ -5,7 +5,10 @@
 
 package org.jetbrains.kotlin.daemon.common.experimental
 
-val REPL_SERVER_PORTS_RANGE_START: Int = 14000
+val RMI_WRAPPER_PORTS_RANGE_START: Int = 13001
+val RMI_WRAPPER_PORTS_RANGE_END: Int = 14000
+
+val REPL_SERVER_PORTS_RANGE_START: Int = 14001
 val REPL_SERVER_PORTS_RANGE_END: Int = 15000
 
 

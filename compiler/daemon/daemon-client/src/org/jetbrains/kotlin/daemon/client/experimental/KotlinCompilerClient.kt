@@ -486,6 +486,7 @@ object KotlinCompilerClient {
                     daemon.inputStream
                         .reader()
                         .forEachLine {
+                            println("daemon_process_report : $it")
                             if (it == COMPILE_DAEMON_IS_READY_MESSAGE) {
                                 reportingTargets.report(
                                     DaemonReportCategory.DEBUG,

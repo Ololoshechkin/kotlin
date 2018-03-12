@@ -61,6 +61,7 @@ fun walkDaemons(
     val portExtractor = makePortFromRunFilenameExtractor(classPathDigest)
     return registryDir.walk()
         .map { Pair(it, portExtractor(it.name)) }
+        .also { println("daemons (in file registry) :"); it.forEach { println("Pair(${it.first}, ${it.second})") } }
         .filter { (file, port) -> port != null && filter(file, port) }
         .mapNotNull { (file, port) ->
             assert(port!! in 1..(MAX_PORT_NUMBER - 1))
@@ -103,8 +104,7 @@ private inline fun tryConnectToDaemon(port: Int, report: (DaemonReportCategory, 
             LoopbackNetworkInterface.loopbackInetAddressName,
             port,
             LoopbackNetworkInterface.clientLoopbackSocketFactory
-        )
-            ?.lookup(COMPILER_SERVICE_RMI_NAME)
+        )?.lookup(COMPILER_SERVICE_RMI_NAME)
         when (daemon) {
             null -> report(DaemonReportCategory.INFO, "daemon not found")
             is CompileService -> return daemon

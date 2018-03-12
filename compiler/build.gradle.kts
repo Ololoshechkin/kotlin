@@ -74,7 +74,9 @@ dependencies {
     testCompile(projectTests(":generators:test-generator"))
     testCompile(project(":compiler:ir.ir2cfg"))
     testCompile(project(":compiler:ir.tree")) // used for deepCopyWithSymbols call that is removed by proguard from the compiler TODO: make it more straightforward
-    testCompileOnly(projectRuntimeJar(":kotlin-daemon-client"))
+    testCompileOnly(projectRuntimeJar(":kotlin-daemon-client")) // TODO : testCompileOnly(project(":kotlin-daemon-client"))
+    testCompile(project(":compiler:daemon")) // +
+    testCompile(project(":compiler:daemon-common")) // +
     testCompileOnly(project(":kotlin-reflect-api"))
     otherCompilerModules.forEach {
         testCompileOnly(project(it))
@@ -84,6 +86,8 @@ dependencies {
 
     testRuntime(projectDist(":kotlin-reflect"))
     testRuntime(projectDist(":kotlin-daemon-client"))
+    testRuntime(project(":compiler:daemon")) // +
+    testRuntime(project(":compiler:daemon-common")) // +
     testRuntime(androidDxJar())
     testRuntime(files(toolsJar()))
 

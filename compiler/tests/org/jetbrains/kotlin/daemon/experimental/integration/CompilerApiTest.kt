@@ -17,6 +17,9 @@ import org.jetbrains.kotlin.config.Services
 import org.jetbrains.kotlin.daemon.client.experimental.DaemonReportingTargets
 import org.jetbrains.kotlin.daemon.client.experimental.KotlinCompilerClient
 import org.jetbrains.kotlin.daemon.common.*
+import org.jetbrains.kotlin.daemon.common.experimental.findPortForSocket
+import org.jetbrains.kotlin.daemon.experimental.CompileServiceServerSideImpl
+import org.jetbrains.kotlin.daemon.experimental.KotlinCompileDaemon
 import org.jetbrains.kotlin.integration.KotlinIntegrationTestBase
 import org.jetbrains.kotlin.scripts.captureOut
 import org.jetbrains.kotlin.test.KotlinTestUtils
@@ -24,6 +27,8 @@ import org.jetbrains.kotlin.test.testFramework.KtUsefulTestCase
 import org.junit.Assert
 import java.io.File
 import java.net.URLClassLoader
+import java.util.*
+import kotlin.concurrent.schedule
 
 class CompilerApiTest : KotlinIntegrationTestBase() {
 
@@ -258,6 +263,70 @@ class CompilerApiTest : KotlinIntegrationTestBase() {
 //            }
 //        }
 //    }
+
+    fun testConnectionMechanism() {
+        withFlagFile(getTestName(true), ".alive") { flagFile ->
+            val daemonJVMOptions = configureDaemonJVMOptions(
+                inheritMemoryLimits = true,
+                inheritOtherJvmOptions = true,
+                inheritAdditionalProperties = true
+            )
+            val compilerId = CompilerId()
+            val daemonOptions = DaemonOptions()
+            val port = findPortForSocket(
+                COMPILE_DAEMON_FIND_PORT_ATTEMPTS,
+                COMPILE_DAEMON_PORTS_RANGE_START,
+                COMPILE_DAEMON_PORTS_RANGE_END
+            )
+            // timer with a daemon thread, meaning it should not prevent JVM to exit normally
+            val timer = Timer(true)
+            val compilerService = CompileServiceServerSideImpl(
+                port,
+                compilerId,
+                daemonOptions,
+                daemonJVMOptions,
+                port,
+                timer,
+                {
+                    if (daemonOptions.forceShutdownTimeoutMilliseconds != COMPILE_DAEMON_TIMEOUT_INFINITE_MS) {
+                        // running a watcher thread that ensures that if the daemon is not exited normally (may be due to RMI leftovers), it's forced to exit
+                        timer.schedule(daemonOptions.forceShutdownTimeoutMilliseconds) {
+                            cancel()
+                            KotlinCompileDaemon.log.info("force JVM shutdown")
+                            System.exit(0)
+                        }
+                    } else {
+                        timer.cancel()
+                    }
+                })
+            compilerService.runServer()
+            println("service started")
+            val runFileDir = File(daemonOptions.runFilesPathOrDefault)
+            runFileDir.mkdirs()
+            val runFile = File(
+                runFileDir,
+                makeRunFilenameString(
+                    timestamp = "%tFT%<tH-%<tM-%<tS.%<tLZ".format(Calendar.getInstance(TimeZone.getTimeZone("Z"))),
+                    digest = compilerId.compilerClasspath.map { File(it).absolutePath }.distinctStringsDigest().toHexString(),
+                    port = port.toString()
+                )
+            )
+            val daemons = walkDaemons(
+                File(daemonOptions.runFilesPathOrDefault),
+                compilerId,
+                runFile,
+                filter = { _, p -> p != port },
+                report = { _, msg -> println(msg) }
+            ).toList()
+            println("daemons : $daemons")
+            assert(daemons.isNotEmpty())
+            val daemon = daemons[0].daemon
+            val info = daemon.getDaemonInfo()
+            println("info : $info")
+            assert(info.isGood)
+        }
+    }
+
 }
 
 class TestMessageCollector : MessageCollector {
