@@ -120,8 +120,8 @@ private inline fun tryConnectToDaemonBySockets(port: Int, report: (DaemonReportC
     try {
         Report.log("tryConnectToDaemonBySockets(port = $port)", "ClientUtils")
         val daemon = CompileServiceClientSideImpl(
-            LoopbackNetworkInterface.loopbackInetAddressName,
-            port
+            port//,
+            //LoopbackNetworkInterface.loopbackInetAddressName
         )
         Report.log("daemon($port) = $daemon", "ClientUtils")
         Report.log("daemon($port) connecting to server...", "ClientUtils")

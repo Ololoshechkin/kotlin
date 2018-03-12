@@ -39,7 +39,7 @@ class DefaultClient(
 
     override fun connectToServer() {
         runBlocking {
-            Report.log("connectToServer(port =$serverPort)", "DefaultClient")
+            Report.log("connectToServer(port =$serverPort | host = $serverHost)", "DefaultClient")
             try {
                 aSocket().tcp().connect(
                     serverHost?.let { InetSocketAddress(it, serverPort) } ?: InetSocketAddress(serverPort)

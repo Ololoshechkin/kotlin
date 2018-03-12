@@ -21,8 +21,8 @@ import java.io.File
 interface CompileServiceClientSide : CompileServiceAsync, Client
 
 class CompileServiceClientSideImpl(
-    val serverHost: String,
-    val serverPort: Int
+    val serverPort: Int,
+    val serverHost: String? = null
 ) : CompileServiceClientSide, Client by DefaultClient(serverPort, serverHost) {
 
     override suspend fun compile(

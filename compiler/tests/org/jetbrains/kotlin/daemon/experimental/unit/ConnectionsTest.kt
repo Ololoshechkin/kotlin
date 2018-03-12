@@ -5,11 +5,14 @@
 
 package org.jetbrains.kotlin.daemon.experimental.unit
 
+import kotlinx.coroutines.experimental.runBlocking
 import org.jetbrains.kotlin.daemon.common.*
 import org.jetbrains.kotlin.daemon.common.experimental.findPortForSocket
+import org.jetbrains.kotlin.daemon.common.experimental.walkDaemonsAsync
 import org.jetbrains.kotlin.daemon.experimental.CompileServiceServerSideImpl
 import org.jetbrains.kotlin.daemon.experimental.KotlinCompileDaemon
 import org.jetbrains.kotlin.integration.KotlinIntegrationTestBase
+import java.awt.SystemColor.info
 import java.io.File
 import java.util.*
 import kotlin.concurrent.schedule
@@ -61,17 +64,19 @@ class ConnectionsTest : KotlinIntegrationTestBase() {
                 port = port.toString()
             )
         )
-        val daemons = walkDaemons(
-            File(daemonOptions.runFilesPathOrDefault),
-            compilerId,
-            runFile,
-            filter = { _, p -> p != port },
-            report = { _, msg -> println(msg) }
-        ).toList()
+        val daemons = runBlocking {
+            walkDaemonsAsync(
+                File(daemonOptions.runFilesPathOrDefault),
+                compilerId,
+                runFile,
+                filter = { _, _ -> true },
+                report = { _, msg -> println(msg) }
+            ).toList()
+        }
         println("daemons : $daemons")
         assert(daemons.isNotEmpty())
         val daemon = daemons[0].daemon
-        val info = daemon.getDaemonInfo()
+        val info = runBlocking { daemon.getDaemonInfo() }
         println("info : $info")
         assert(info.isGood)
     }

@@ -13,11 +13,11 @@ import kotlin.concurrent.schedule
 object Report {
 
     private val _log_file: PrintWriter by lazy {
-        val f = File("_LOG_.txt").printWriter()
-        Timer().schedule(10000) {
-            _log_file.close()
-        }
-        f
+        /*val f = */File("_LOG_.txt").printWriter()
+//        Timer().schedule(10000) {
+//            _log_file.close()
+//        }
+//        f
     }
 
     public fun log(debugString: String, classs: String) {
