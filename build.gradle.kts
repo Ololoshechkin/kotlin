@@ -1,5 +1,4 @@
 
-import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import org.gradle.api.Project
 import java.util.*
 import java.io.File
@@ -58,8 +57,8 @@ pill {
 }
 
 buildScan {
-    setTermsOfServiceUrl("https://gradle.com/terms-of-service")
-    setTermsOfServiceAgree("yes")
+    setLicenseAgreementUrl("https://gradle.com/terms-of-service")
+    setLicenseAgree("yes")
 }
 
 val configuredJdks: List<JdkId> =
@@ -140,6 +139,8 @@ extra["versions.junit"] = "4.12"
 extra["versions.javaslang"] = "2.0.6"
 extra["versions.ant"] = "1.8.2"
 extra["versions.android"] = "2.3.1"
+extra["versions.kotlinx-coroutines-core"] = "0.22"
+extra["versions.kotlinx-coroutines-jdk8"] = "0.22"
 extra["versions.kotlinx-coroutines-core"] = "0.20"
 extra["versions.kotlinx-serialization-runtime"] = "0.4.2"
 extra["versions.kotlinx-coroutines-jdk8"] = "0.20"
@@ -149,6 +150,11 @@ extra["versions.ant-launcher"] = "1.8.0"
 extra["versions.robolectric"] = "3.1"
 extra["versions.org.springframework"] = "4.2.0.RELEASE"
 extra["versions.jflex"] = "1.7.0"
+extra["versions.ktor-network"] = "0.9.1-alpha-10"
+
+val markdownVer =  "4054 - Kotlin 1.0.2-dev-566".replace(" ", "%20") // fixed here, was last with "status:SUCCESS,tag:forKotlin"
+extra["markdownParserVersion"] = markdownVer
+extra["markdownParserRepo"] = "https://teamcity.jetbrains.com/guestAuth/repository/download/IntelliJMarkdownParser_Build/$markdownVer/([artifact]_[ext]/)[artifact](.[ext])"
 extra["versions.markdown"] = "0.1.25"
 
 val isTeamcityBuild = project.hasProperty("teamcity") || System.getenv("TEAMCITY_VERSION") != null
@@ -357,7 +363,7 @@ allprojects {
     }
 }
 
-val dist by task<Copy> {
+val distTask = task<Copy>("dist") {
     val childDistTasks = getTasksByName("dist", true) - this@task
     dependsOn(childDistTasks)
 
@@ -366,16 +372,17 @@ val dist by task<Copy> {
     from(files("license")) { into("kotlinc/license") }
 }
 
-val copyCompilerToIdeaPlugin by task<Copy> {
-    dependsOn(dist)
+val compilerCopyTask = task<Copy>("idea-plugin-copy-compiler") {
+    dependsOn(distTask)
     into(ideaPluginDir)
     from(distDir) { include("kotlinc/**") }
 }
 
-val ideaPlugin by task<Task> {
-    dependsOn(copyCompilerToIdeaPlugin)
+task<Copy>("ideaPlugin") {
+    dependsOn(compilerCopyTask)
     val childIdeaPluginTasks = getTasksByName("ideaPlugin", true) - this@task
     dependsOn(childIdeaPluginTasks)
+    into("$ideaPluginDir/lib")
 }
 
 tasks {
@@ -386,11 +393,11 @@ tasks {
         }
     }
 
+    // TODO: copied from TeamCityBuild.xml (with ultimate-related modification), consider removing after migrating from it
     "cleanupArtifacts" {
         doLast {
             delete(ideaPluginDir)
             delete(ideaUltimatePluginDir)
-            delete(cidrPluginDir)
         }
     }
 
@@ -519,20 +526,18 @@ tasks {
     "check" { dependsOn("test") }
 }
 
-fun CopySpec.setExecutablePermissions() {
-    filesMatching("**/bin/*") { mode = 0b111101101 }
-    filesMatching("**/bin/*.bat") { mode = 0b110100100 }
+fun CopySpec.compilerScriptPermissionsSpec() {
+    filesMatching("bin/*") { mode = 0b111101101 }
+    filesMatching("bin/*.bat") { mode = 0b110100100 }
 }
 
 val zipCompiler by task<Zip> {
-    dependsOn(dist)
     destinationDir = file(distDir)
     archiveName = "kotlin-compiler-$kotlinVersion.zip"
-
-    from(distKotlinHomeDir)
-    into("kotlinc")
-    setExecutablePermissions()
-
+    from(distKotlinHomeDir) {
+        into("kotlinc")
+        compilerScriptPermissionsSpec()
+    }
     doLast {
         logger.lifecycle("Compiler artifacts packed to $archivePath")
     }
@@ -563,49 +568,15 @@ val zipPlugin by task<Zip> {
     doFirst {
         if (destPath == null) throw GradleException("Specify target zip path with 'pluginZipPath' property")
     }
-
-    from(src)
-    into("Kotlin")
-    setExecutablePermissions()
-
-    doLast {
-        logger.lifecycle("Plugin artifacts packed to $archivePath")
+    into("Kotlin") {
+        from("$src/kotlinc") {
+            into("kotlinc")
+            compilerScriptPermissionsSpec()
+        }
+        from(src) {
+            exclude("kotlinc")
+        }
     }
-}
-
-val cidrPlugin by task<Copy> {
-    dependsOn(ideaPlugin)
-    into(cidrPluginDir)
-    from(ideaPluginDir) {
-        exclude("lib/kotlin-plugin.jar")
-
-        exclude("lib/uast-kotlin.jar")
-        exclude("lib/uast-kotlin-ide.jar")
-        exclude("lib/android-ide.jar")
-        exclude("lib/android-output-parser-ide.jar")
-        exclude("lib/android-extensions-ide.jar")
-        exclude("lib/android-extensions-compiler.jar")
-        exclude("lib/kapt3-idea.jar")
-        exclude("lib/jps-ide.jar")
-        exclude("lib/jps/**")
-        exclude("kotlinc/**")
-        exclude("lib/maven-ide.jar")
-    }
-    from(cidrKotlinPlugin) { into("lib") }
-}
-
-val zipCidrPlugin by task<Zip> {
-    val destPath = project.findProperty("pluginZipPath") as String?
-            ?: "$distDir/artifacts/kotlin-plugin-$kotlinVersion-CIDR.zip"
-    val destFile = File(destPath)
-
-    destinationDir = destFile.parentFile
-    archiveName = destFile.name
-
-    from(cidrPlugin)
-    into("Kotlin")
-    setExecutablePermissions()
-
     doLast {
         logger.lifecycle("Plugin artifacts packed to $archivePath")
     }
@@ -634,12 +605,10 @@ fun jdkPath(version: String): String = jdkPathIfFound(version)
 
 fun Project.configureJvmProject(javaHome: String, javaVersion: String) {
     tasks.withType<JavaCompile> {
-        if (name != "compileJava9Java") {
-            options.isFork = true
-            options.forkOptions.javaHome = file(javaHome)
-            options.compilerArgs.add("-proc:none")
-            options.encoding = "UTF-8"
-        }
+        options.isFork = true
+        options.forkOptions.javaHome = file(javaHome)
+        options.compilerArgs.add("-proc:none")
+        options.encoding = "UTF-8"
     }
 
     tasks.withType<KotlinCompile> {
@@ -649,43 +618,5 @@ fun Project.configureJvmProject(javaHome: String, javaVersion: String) {
 
     tasks.withType<Test> {
         executable = File(javaHome, "bin/java").canonicalPath
-    }
-}
-
-tasks.create("findShadowJarsInClasspath").doLast {
-    fun Collection<File>.printSorted(indent: String = "    ") {
-        sortedBy { it.path }.forEach { println(indent + it.relativeTo(rootProject.projectDir)) }
-    }
-
-    val shadowJars = hashSetOf<File>()
-    for (project in rootProject.allprojects) {
-        for (task in project.tasks) {
-            when (task) {
-                is ShadowJar -> {
-                    shadowJars.add(File(task.archivePath))
-                }
-                is ProGuardTask -> {
-                    shadowJars.addAll(task.outputs.files.toList())
-                }
-            }
-        }
-    }
-
-    println("Shadow jars:")
-    shadowJars.printSorted()
-
-    fun Project.checkConfig(configName: String) {
-        val config = configurations.findByName(configName) ?: return
-        val shadowJarsInConfig = config.resolvedConfiguration.files.filter { it in shadowJars }
-        if (shadowJarsInConfig.isNotEmpty()) {
-            println()
-            println("Project $project contains shadow jars in configuration '$configName':")
-            shadowJarsInConfig.printSorted()
-        }
-    }
-
-    for (project in rootProject.allprojects) {
-        project.checkConfig("compileClasspath")
-        project.checkConfig("testCompileClasspath")
     }
 }
