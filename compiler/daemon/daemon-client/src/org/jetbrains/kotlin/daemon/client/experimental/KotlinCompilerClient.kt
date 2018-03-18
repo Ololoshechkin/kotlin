@@ -452,8 +452,6 @@ object KotlinCompilerClient {
         println("in startDaemon() - 0.3")
         val args = listOf(
             javaExecutable.absolutePath, "-cp", compilerId.compilerClasspath.joinToString(File.pathSeparator)
-//                    + File.pathSeparator + "/Users/Vadim/.gradle/caches/modules-2/files-2.1/io.ktor/ktor-network/0.9.1-alpha-10/827a6912addc183dd672694b301d32ec3eaa48f6/ktor-network-0.9.1-alpha-10.jar"
-//                    + File.pathSeparator + "/Users/Vadim/.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlinx/kotlinx-io-jvm/0.0.8/23a9d59c9dfda747fe547761284d5b944d1ec287/kotlinx-io-jvm-0.0.8.jar"
         ) +
                 platformSpecificOptions +
                 daemonJVMOptions.mappers.flatMap { it.toArgs("-") } +
