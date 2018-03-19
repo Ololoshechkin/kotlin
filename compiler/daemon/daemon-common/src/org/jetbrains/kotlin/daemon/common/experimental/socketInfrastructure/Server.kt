@@ -4,8 +4,10 @@ import io.ktor.network.sockets.Socket
 import io.ktor.network.sockets.aSocket
 import kotlinx.coroutines.experimental.Deferred
 import kotlinx.coroutines.experimental.async
+import kotlinx.coroutines.experimental.channels.actor
 import java.io.Serializable
 import java.net.InetSocketAddress
+import java.util.logging.Logger
 
 /*
  * Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license
@@ -13,15 +15,41 @@ import java.net.InetSocketAddress
  */
 interface ServerBase
 
+@Suppress("UNCHECKED_CAST")
 interface Server<out T : ServerBase> : ServerBase {
 
+    val serverPort: Int
+
+    private val log: Logger
+        get() = Logger.getLogger("default server")
+
     enum class State {
-        WORKING, CLOSED, ERROR
+        WORKING, CLOSED, ERROR, DOWNING
     }
 
-    suspend fun processMessage(msg: AnyMessage<in T>, output: ByteWriteChannelWrapper): State
+    suspend fun processMessage(msg: AnyMessage<in T>, output: ByteWriteChannelWrapper): State = when (msg) {
+        is Server.Message<in T> -> Server.State.WORKING.also { msg.process(this as T, output) }
+        is Server.EndConnectionMessage<in T> -> Server.State.CLOSED
+        is Server.ServerDownMessage<in T> -> Server.State.DOWNING
+        else -> Server.State.ERROR
+    }
 
-    suspend fun attachClient(client: Socket)
+    suspend fun attachClient(client: Socket): Deferred<State>  = async {
+        val (input, output) = client.openIO(log)
+        var finalState = Server.State.WORKING
+        loop@
+        while (true) {
+            val state = processMessage(input.nextObject() as Server.AnyMessage<T>, output)
+            when (state) {
+                Server.State.WORKING -> continue@loop
+                else -> {
+                    finalState = state
+                    break@loop
+                }
+            }
+        }
+        finalState
+    }
 
     interface AnyMessage<ServerType : ServerBase> : Serializable
 
@@ -31,43 +59,24 @@ interface Server<out T : ServerBase> : ServerBase {
 
     class EndConnectionMessage<ServerType : ServerBase> : AnyMessage<ServerType>
 
-    fun runServer() : Deferred<Unit>
+    class ServerDownMessage<ServerType : ServerBase> : AnyMessage<ServerType>
 
-}
-
-@Suppress("UNCHECKED_CAST")
-class DefaultServer<out ServerType : ServerBase>(val serverPort: Int, val self: ServerType) : Server<ServerType> {
-
-    final override suspend fun processMessage(msg: Server.AnyMessage<in ServerType>, output: ByteWriteChannelWrapper) = when (msg) {
-        is Server.Message<in ServerType> -> Server.State.WORKING.also { msg.process(self as ServerType, output) }
-        is Server.EndConnectionMessage<in ServerType> -> Server.State.CLOSED
-        else -> Server.State.ERROR
-    }
-
-    final override suspend fun attachClient(client: Socket) {
-        async {
-            val (input, output) = client.openIO()
-            loop@ while (true) {
-                when (processMessage(input.nextObject() as Server.AnyMessage<ServerType>, output)) {
-                    Server.State.CLOSED -> break@loop
-                    Server.State.ERROR -> {
-                        // TODO println("Server error: invalid message")
-                    }
-                    else -> continue@loop
-                }
-            }
-        }
-    }
-
-    final override fun runServer(): Deferred<Unit> {
-        Report.log("binding to address($serverPort)", "DefaultSetver")
-        return aSocket().tcp().bind(InetSocketAddress(serverPort)).use { serverSocket ->
-            async {
-                Report.log("accepting clientSocket...", "DefaultSetver")
+    fun runServer(): Deferred<Unit> {
+        log.info("binding to address($serverPort)")
+        val serverSocket = aSocket().tcp().bind(InetSocketAddress(serverPort))
+        return async {
+            serverSocket.use {
+                log.info("accepting clientSocket...")
                 while (true) {
                     val client = serverSocket.accept()
-                    Report.log("client accepted! (${client.remoteAddress})", "DefaultServer")
-                    attachClient(client)
+                    log.info("client accepted! (${client.remoteAddress})")
+                    attachClient(client).invokeOnCompletion {
+                        when (it) {
+                            Server.State.DOWNING -> TODO("DOWN")
+                            else -> {
+                            }
+                        }
+                    }
                 }
             }
         }
