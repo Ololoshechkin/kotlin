@@ -64,6 +64,7 @@ class DefaultClient(
                 log.info("OK serv.openIO() |port=$serverPort|")
                 input = it.input
                 output = it.output
+                output.printBytes(byteArrayOf(1, 2, 3, 4))
             }
         }
     }
