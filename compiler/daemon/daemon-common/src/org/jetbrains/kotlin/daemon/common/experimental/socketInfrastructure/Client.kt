@@ -60,6 +60,7 @@ class DefaultClient(
                 Report.log("OK serv.openIO() |port=$serverPort|", "DefaultClient")
                 input = it.input
                 output = it.output
+                output.printBytes(byteArrayOf(1, 2, 3, 4))
             }
         }
     }

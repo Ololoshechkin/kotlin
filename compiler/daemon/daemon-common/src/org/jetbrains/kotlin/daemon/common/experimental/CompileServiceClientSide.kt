@@ -19,11 +19,14 @@ import org.jetbrains.kotlin.daemon.common.experimental.socketInfrastructure.Serv
 import java.io.File
 import java.util.logging.Logger
 
-interface CompileServiceClientSide : CompileServiceAsync, Client
+interface CompileServiceClientSide: CompileServiceAsync, Client {
+    val serverPort: Int
+}
+
 
 class CompileServiceClientSideImpl(
-    val serverHost: String,
-    val serverPort: Int
+    override val serverPort: Int,
+    val serverHost: String
 ) : CompileServiceClientSide, Client by DefaultClient(serverPort, serverHost) {
     
     val log = Logger.getLogger("CompileServiceClientSideImpl")
