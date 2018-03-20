@@ -10,6 +10,8 @@ import java.net.InetSocketAddress
 import java.util.ArrayList
 import java.util.function.Function
 
+val BYTES_TOKEN = byteArrayOf(1, 2, 3, 4)
+
 interface Client : Serializable, AutoCloseable {
     @Throws(Exception::class)
     fun connectToServer()
@@ -60,7 +62,7 @@ class DefaultClient(
                 Report.log("OK serv.openIO() |port=$serverPort|", "DefaultClient")
                 input = it.input
                 output = it.output
-                output.printBytes(byteArrayOf(1, 2, 3, 4))
+                output.printBytes(BYTES_TOKEN)
             }
         }
     }

@@ -40,13 +40,14 @@ interface Server<out T : ServerBase> : ServerBase {
     suspend fun attachClient(client: Socket): Deferred<State> = async {
         val (input, output) = client.openIO(log)
         try {
-            val bytes = input.readBytes(4)
-            println("bytes : ${bytes.toList()}")
-            if (bytes.zip(byteArrayOf(1, 2, 3, 4)).any { it.first != it.second }) {
-                throw Exception();
+            val bytes = input.readBytes(BYTES_TOKEN.size)
+            log.info("bytes : ${bytes.toList()}")
+            if (bytes.zip(BYTES_TOKEN).any { it.first != it.second }) {
+                log.info("BAD TOKEN")
+                return@async Server.State.CLOSED
             }
         } catch (e: Throwable) {
-            println("BAD TOKEN")
+            log.info("NO TOKEN")
             return@async Server.State.CLOSED
         }
         var finalState = Server.State.WORKING
