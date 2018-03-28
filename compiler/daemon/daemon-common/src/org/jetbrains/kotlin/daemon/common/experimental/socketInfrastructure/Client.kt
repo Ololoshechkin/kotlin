@@ -1,15 +1,12 @@
 package org.jetbrains.kotlin.daemon.common.experimental.socketInfrastructure
 
 import io.ktor.network.sockets.Socket
-import io.ktor.network.sockets.aSocket
 import kotlinx.coroutines.experimental.*
-import org.jetbrains.kotlin.daemon.common.experimental.BYTES_TOKEN
 import org.jetbrains.kotlin.daemon.common.experimental.LoopbackNetworkInterface
+import sun.net.ConnectionResetException
 import java.beans.Transient
 import java.io.Serializable
-import java.net.InetSocketAddress
-import java.util.ArrayList
-import java.util.function.Function
+import java.util.logging.Logger
 
 interface Client : Serializable, AutoCloseable {
     @Throws(Exception::class)
@@ -18,14 +15,17 @@ interface Client : Serializable, AutoCloseable {
     fun sendMessage(msg: Any): Deferred<Unit>
     fun <T> readMessage(): Deferred<T>
 
-    fun f() {}
 }
 
 @Suppress("UNCHECKED_CAST")
 class DefaultClient(
     val serverPort: Int,
-    val serverHost: String? = null
+    val serverHost: String = LoopbackNetworkInterface.loopbackInetAddressName,
+    val authorizeOnServer: (ByteWriteChannelWrapper) -> Unit = {}
 ) : Client {
+
+    val log: Logger
+        @Transient get() = Logger.getLogger("default client")
 
     lateinit var input: ByteReadChannelWrapper
         @Transient get
@@ -38,7 +38,6 @@ class DefaultClient(
     private var socket: Socket? = null
         @Transient get
         @Transient set
-
     override fun close() {
         socket?.close()
     }
@@ -47,21 +46,28 @@ class DefaultClient(
 
     override fun <T> readMessage() = async { input.nextObject() as T }
 
+    @Throws(Exception::class)
     override fun connectToServer() {
-        runBlocking {
-            Report.log("connectToServer(port =$serverPort)", "DefaultClient")
+        runBlocking(Unconfined) {
+            log.info("connectToServer (port = $serverPort | host = $serverHost)")
             try {
-                socket = aSocket().tcp().connect(InetSocketAddress(serverPort))
+                socket = LoopbackNetworkInterface.clientLoopbackSocketFactoryKtor.createSocket(
+                    serverHost,
+                    serverPort
+                )
             } catch (e: Throwable) {
-                Report.log("EXCEPTION ($e)", "DefaultClient")
+                log.info("EXCEPTION while connecting to server ($e)")
                 throw e
             }
-            Report.log("connected (port = $serverPort, serv =$serverPort)", "DefaultClient")
-            socket!!.openIO().also {
-                Report.log("OK serv.openIO() |port=$serverPort|", "DefaultClient")
+            log.info("connected (port = $serverPort, serv =$serverPort)")
+            socket!!.openIO(log).also {
+                log.info("OK serv.openIO() |port=$serverPort|")
                 input = it.input
                 output = it.output
-                output.printBytes(BYTES_TOKEN)
+                if (!tryAcquireHandshakeMessage(input, log) || !trySendHandshakeMessage(output)) {
+                    throw ConnectionResetException("failed to establish connection with server (handshake failed)")
+                }
+                authorizeOnServer(output)
             }
         }
     }
