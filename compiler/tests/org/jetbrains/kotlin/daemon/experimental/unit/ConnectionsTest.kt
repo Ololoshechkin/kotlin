@@ -20,6 +20,7 @@ import org.jetbrains.kotlin.daemon.common.experimental.walkDaemonsAsync
 import org.jetbrains.kotlin.daemon.experimental.CompileServiceServerSideImpl
 import org.jetbrains.kotlin.daemon.loggerCompatiblePath
 import org.jetbrains.kotlin.integration.KotlinIntegrationTestBase
+import org.junit.Ignore
 import java.io.File
 import java.util.*
 import java.util.logging.LogManager
@@ -126,7 +127,7 @@ class ConnectionsTest : KotlinIntegrationTestBase() {
                 compilerId,
                 daemonOptions,
                 daemonJVMOptions,
-                serverPort,
+                serverPort.port,
                 timer,
                 onShutdown
             ).let {
@@ -268,8 +269,10 @@ class ConnectionsTest : KotlinIntegrationTestBase() {
 
     fun testConnections_NewDaemon_DifferentClients() {
         runNewServer()
-        (0..20).forEach {
+        (0..4).forEach {
+            println(it)
             expectNewDaemon(ServerType.NEW)
+            println(it)
             expectOldDaemon()
         }
         endTest()
@@ -280,8 +283,10 @@ class ConnectionsTest : KotlinIntegrationTestBase() {
             runNewServer()
             runOldServer()
         }
-        (0..10).forEach {
+        (0..4).forEach {
+            println(it)
             expectNewDaemon(ServerType.ANY)
+            println(it)
             expectOldDaemon(shouldCheckNumber = false)
         }
         endTest()

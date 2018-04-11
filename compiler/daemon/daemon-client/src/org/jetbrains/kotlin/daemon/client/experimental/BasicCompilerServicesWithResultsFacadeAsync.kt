@@ -10,13 +10,14 @@ import org.jetbrains.kotlin.daemon.client.reportFromDaemon
 import org.jetbrains.kotlin.daemon.common.experimental.CompilerServicesFacadeBaseClientSide
 import org.jetbrains.kotlin.daemon.common.experimental.CompilerServicesFacadeBaseClientSideImpl
 import org.jetbrains.kotlin.daemon.common.experimental.CompilerServicesFacadeBaseServerSide
+import org.jetbrains.kotlin.daemon.common.experimental.ServerSocketWrapper
 import java.io.File
 import java.io.Serializable
 
 open class BasicCompilerServicesWithResultsFacadeServerServerSide(
     val messageCollector: MessageCollector,
     val outputsCollector: ((File, List<File>) -> Unit)? = null,
-    override val serverPort: Int = findCallbackServerSocket()
+    override val serverSocketWithPort: ServerSocketWrapper = findCallbackServerSocket()
 ) : CompilerServicesFacadeBaseServerSide {
 
     override suspend fun report(category: Int, severity: Int, message: String?, attachment: Serializable?) {
@@ -24,5 +25,5 @@ open class BasicCompilerServicesWithResultsFacadeServerServerSide(
     }
 
     val clientSide : CompilerServicesFacadeBaseClientSide
-        get() = CompilerServicesFacadeBaseClientSideImpl(serverPort)
+        get() = CompilerServicesFacadeBaseClientSideImpl(serverSocketWithPort.port)
 }

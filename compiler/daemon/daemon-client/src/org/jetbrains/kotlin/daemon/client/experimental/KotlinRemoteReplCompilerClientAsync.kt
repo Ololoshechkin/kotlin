@@ -11,6 +11,7 @@ import org.jetbrains.kotlin.cli.common.repl.*
 import org.jetbrains.kotlin.daemon.client.RemoteReplCompilerState
 import org.jetbrains.kotlin.daemon.common.*
 import org.jetbrains.kotlin.daemon.common.experimental.CompileServiceClientSide
+import org.jetbrains.kotlin.daemon.common.experimental.ServerSocketWrapper
 import java.io.File
 import java.util.concurrent.locks.ReentrantReadWriteLock
 
@@ -24,7 +25,7 @@ open class KotlinRemoteReplCompilerClientAsync(
     messageCollector: MessageCollector,
     templateClasspath: List<File>,
     templateClassName: String,
-    port: Int = SOCKET_ANY_FREE_PORT
+    port: ServerSocketWrapper = findCallbackServerSocket()
 ) : ReplCompiler {
     val services = BasicCompilerServicesWithResultsFacadeServerServerSide(messageCollector, null, port)
 

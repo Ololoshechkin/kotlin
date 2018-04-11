@@ -676,7 +676,7 @@ class CompilerDaemonTest : KotlinIntegrationTestBase() {
     }
 
     private val PARALLEL_THREADS_TO_COMPILE = 10
-    private val PARALLEL_WAIT_TIMEOUT_S = 60L
+    private val PARALLEL_WAIT_TIMEOUT_S = 200L
 
     fun testParallelCompilationOnDaemon() {
 
@@ -686,6 +686,21 @@ class CompilerDaemonTest : KotlinIntegrationTestBase() {
             val daemonOptions = makeTestDaemonOptions(getTestName(true))
 
             withLogFile("kotlin-daemon-test") { logFile ->
+
+
+                val cfg: String =
+                    "handlers = java.util.logging.FileHandler\n" +
+                            "java.util.logging.FileHandler.level     = ALL\n" +
+                            "java.util.logging.FileHandler.formatter = java.util.logging.SimpleFormatter\n" +
+                            "java.util.logging.FileHandler.encoding  = UTF-8\n" +
+                            "java.util.logging.FileHandler.limit     = 0\n" + // if file is provided - disabled, else - 1Mb
+                            "java.util.logging.FileHandler.count     = 1\n" +
+                            "java.util.logging.FileHandler.append    = true\n" +
+                            "java.util.logging.FileHandler.pattern   = ${logFile.loggerCompatiblePath}\n" +
+                            "java.util.logging.SimpleFormatter.format = %1\$tF %1\$tT.%1\$tL [%3\$s] %4\$s: %5\$s%n\n"
+                LogManager.getLogManager().readConfiguration(cfg.byteInputStream())
+
+
                 val daemonJVMOptions = makeTestDaemonJvmOptions(logFile, xmx = -1)
 
                 val daemon = KotlinCompilerClient.connectToCompileService(
@@ -697,11 +712,11 @@ class CompilerDaemonTest : KotlinIntegrationTestBase() {
                     autostart = true
                 )
                 assertNotNull("failed to connect daemon", daemon)
+                TestCase.assertTrue("daemon is not new!", daemon !is CompileService)
                 runBlocking {
-                    println("\n_connected_ (${daemon!!.getDaemonInfo()})\n")
+                    println("\n_connected_ (${(daemon ?: 5)::class.java.name})\n")
                 }
 
-                val port = findPortForSocket(10, 16384, 65535)
                 val resultCodes = arrayOfNulls<Int>(PARALLEL_THREADS_TO_COMPILE)
                 val localEndSignal = CountDownLatch(PARALLEL_THREADS_TO_COMPILE)
                 val outStreams = Array(PARALLEL_THREADS_TO_COMPILE, { ByteArrayOutputStream() })
@@ -715,8 +730,7 @@ class CompilerDaemonTest : KotlinIntegrationTestBase() {
                             CompileService.NO_SESSION,
                             CompileService.TargetPlatform.JVM,
                             arrayOf("-include-runtime", File(getHelloAppBaseDir(), "hello.kt").absolutePath, "-d", jar),
-                            PrintingMessageCollector(PrintStream(outStreams[threadNo]), MessageRenderer.WITHOUT_PATHS, true),
-                            port = port
+                            PrintingMessageCollector(PrintStream(outStreams[threadNo]), MessageRenderer.WITHOUT_PATHS, true)
                         )
                         println("res = $res")
                         synchronized(resultCodes) {

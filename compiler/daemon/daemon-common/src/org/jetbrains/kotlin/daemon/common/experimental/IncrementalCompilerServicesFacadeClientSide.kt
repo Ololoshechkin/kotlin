@@ -22,29 +22,29 @@ class IncrementalCompilerServicesFacadeClientSideImpl(val serverPort: Int) :
     Client<CompilerServicesFacadeBaseServerSide> by DefaultClient(serverPort) {
 
     override suspend fun hasAnnotationsFileUpdater(): Boolean {
-        sendMessage(HasAnnotationsFileUpdaterMessage()).await()
-        return readMessage<Boolean>().await()
+        sendMessage(HasAnnotationsFileUpdaterMessage())
+        return readMessage<Boolean>()
     }
 
     override suspend fun updateAnnotations(outdatedClassesJvmNames: Iterable<String>) {
-        sendMessage(UpdateAnnotationsMessage(outdatedClassesJvmNames)).await()
+        sendMessage(UpdateAnnotationsMessage(outdatedClassesJvmNames))
     }
 
     override suspend fun revert() {
-        sendMessage(RevertMessage()).await()
+        sendMessage(RevertMessage())
     }
 
     override suspend fun registerChanges(timestamp: Long, dirtyData: SimpleDirtyData) {
-        sendMessage(RegisterChangesMessage(timestamp, dirtyData)).await()
+        sendMessage(RegisterChangesMessage(timestamp, dirtyData))
     }
 
     override suspend fun unknownChanges(timestamp: Long) {
-        sendMessage(UnknownChangesMessage(timestamp)).await()
+        sendMessage(UnknownChangesMessage(timestamp))
     }
 
     override suspend fun getChanges(artifact: File, sinceTS: Long): Iterable<SimpleDirtyData>? {
-        sendMessage(HasAnnotationsFileUpdaterMessage()).await()
-        return readMessage<Iterable<SimpleDirtyData>?>().await()
+        sendMessage(HasAnnotationsFileUpdaterMessage())
+        return readMessage<Iterable<SimpleDirtyData>?>()
     }
 
     override suspend fun report(category: Int, severity: Int, message: String?, attachment: Serializable?) {
