@@ -24,38 +24,38 @@ class CompilerCallbackServicesFacadeClientSideImpl(serverPort: Int) : CompilerCa
     Client<CompilerServicesFacadeBaseServerSide> by DefaultClient(serverPort) {
 
     override suspend fun hasIncrementalCaches(): Boolean {
-        sendMessage(CompilerCallbackServicesFacadeServerSide.HasIncrementalCachesMessage()).await()
-        return readMessage<Boolean>().await()
+        sendMessage(CompilerCallbackServicesFacadeServerSide.HasIncrementalCachesMessage())
+        return readMessage<Boolean>()
     }
 
     override suspend fun hasLookupTracker(): Boolean {
-        sendMessage(CompilerCallbackServicesFacadeServerSide.HasLookupTrackerMessage()).await()
-        return readMessage<Boolean>().await()
+        sendMessage(CompilerCallbackServicesFacadeServerSide.HasLookupTrackerMessage())
+        return readMessage<Boolean>()
     }
 
     override suspend fun hasCompilationCanceledStatus(): Boolean {
-        sendMessage(CompilerCallbackServicesFacadeServerSide.HasCompilationCanceledStatusMessage()).await()
-        return readMessage<Boolean>().await()
+        sendMessage(CompilerCallbackServicesFacadeServerSide.HasCompilationCanceledStatusMessage())
+        return readMessage<Boolean>()
     }
 
     override suspend fun incrementalCache_getObsoletePackageParts(target: TargetId): Collection<String> {
-        sendMessage(CompilerCallbackServicesFacadeServerSide.IncrementalCache_getObsoletePackagePartsMessage(target)).await()
-        return readMessage<Collection<String>>().await()
+        sendMessage(CompilerCallbackServicesFacadeServerSide.IncrementalCache_getObsoletePackagePartsMessage(target))
+        return readMessage<Collection<String>>()
     }
 
     override suspend fun incrementalCache_getObsoleteMultifileClassFacades(target: TargetId): Collection<String> {
-        sendMessage(CompilerCallbackServicesFacadeServerSide.IncrementalCache_getObsoleteMultifileClassFacadesMessage(target)).await()
-        return readMessage<Collection<String>>().await()
+        sendMessage(CompilerCallbackServicesFacadeServerSide.IncrementalCache_getObsoleteMultifileClassFacadesMessage(target))
+        return readMessage<Collection<String>>()
     }
 
     override suspend fun incrementalCache_getPackagePartData(target: TargetId, partInternalName: String): JvmPackagePartProto? {
-        sendMessage(CompilerCallbackServicesFacadeServerSide.IncrementalCache_getPackagePartDataMessage(target, partInternalName)).await()
-        return readMessage<JvmPackagePartProto?>().await()
+        sendMessage(CompilerCallbackServicesFacadeServerSide.IncrementalCache_getPackagePartDataMessage(target, partInternalName))
+        return readMessage<JvmPackagePartProto?>()
     }
 
     override suspend fun incrementalCache_getModuleMappingData(target: TargetId): ByteArray? {
-        sendMessage(CompilerCallbackServicesFacadeServerSide.IncrementalCache_getModuleMappingDataMessage(target)).await()
-        return readMessage<ByteArray?>().await()
+        sendMessage(CompilerCallbackServicesFacadeServerSide.IncrementalCache_getModuleMappingDataMessage(target))
+        return readMessage<ByteArray?>()
     }
 
     override suspend fun incrementalCache_registerInline(target: TargetId, fromPath: String, jvmSignature: String, toPath: String) =
@@ -66,36 +66,36 @@ class CompilerCallbackServicesFacadeClientSideImpl(serverPort: Int) : CompilerCa
                 jvmSignature,
                 toPath
             )
-        ).await()
+        )
 
     override suspend fun incrementalCache_getClassFilePath(target: TargetId, internalClassName: String): String {
-        sendMessage(CompilerCallbackServicesFacadeServerSide.IncrementalCache_getClassFilePathMessage(target, internalClassName)).await()
-        return readMessage<String>().await()
+        sendMessage(CompilerCallbackServicesFacadeServerSide.IncrementalCache_getClassFilePathMessage(target, internalClassName))
+        return readMessage<String>()
     }
 
     override suspend fun incrementalCache_close(target: TargetId) =
-        sendMessage(CompilerCallbackServicesFacadeServerSide.IncrementalCache_closeMessage(target)).await()
+        sendMessage(CompilerCallbackServicesFacadeServerSide.IncrementalCache_closeMessage(target))
 
     override suspend fun incrementalCache_getMultifileFacadeParts(target: TargetId, internalName: String): Collection<String>? {
-        sendMessage(CompilerCallbackServicesFacadeServerSide.IncrementalCache_getMultifileFacadePartsMessage(target, internalName)).await()
-        return readMessage<Collection<String>?>().await()
+        sendMessage(CompilerCallbackServicesFacadeServerSide.IncrementalCache_getMultifileFacadePartsMessage(target, internalName))
+        return readMessage<Collection<String>?>()
     }
 
     override suspend fun lookupTracker_requiresPosition(): Boolean {
-        sendMessage(CompilerCallbackServicesFacadeServerSide.LookupTracker_requiresPositionMessage()).await()
-        return readMessage<Boolean>().await()
+        sendMessage(CompilerCallbackServicesFacadeServerSide.LookupTracker_requiresPositionMessage())
+        return readMessage<Boolean>()
     }
 
     override suspend fun lookupTracker_record(lookups: Collection<LookupInfo>) =
-        sendMessage(CompilerCallbackServicesFacadeServerSide.LookupTracker_recordMessage(lookups)).await()
+        sendMessage(CompilerCallbackServicesFacadeServerSide.LookupTracker_recordMessage(lookups))
 
     override suspend fun lookupTracker_isDoNothing(): Boolean {
-        sendMessage(CompilerCallbackServicesFacadeServerSide.LookupTracker_isDoNothingMessage()).await()
-        return readMessage<Boolean>().await()
+        sendMessage(CompilerCallbackServicesFacadeServerSide.LookupTracker_isDoNothingMessage())
+        return readMessage<Boolean>()
     }
 
     override suspend fun compilationCanceledStatus_checkCanceled(): Void? {
-        sendMessage(CompilerCallbackServicesFacadeServerSide.CompilationCanceledStatus_checkCanceledMessage()).await()
+        sendMessage(CompilerCallbackServicesFacadeServerSide.CompilationCanceledStatus_checkCanceledMessage())
         return null
     }
 

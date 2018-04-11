@@ -28,7 +28,7 @@ class TestServer(val serverPort: Int = 6999) {
         log.info("client accepted! (${client.remoteAddress})")
         val (input, output) = client.openIO(log)
 
-        if (runBlocking { !tryAcquireHandshakeMessage(input, log) || !trySendHandshakeMessage(output) }) {
+        if (runBlocking(coroutineContext) { !tryAcquireHandshakeMessage(input, log) || !trySendHandshakeMessage(output, log) }) {
             log.info("failed to establish connection with client (handshake failed)")
             false
         } else {
@@ -64,7 +64,7 @@ class ClientSerializationTest : KotlinIntegrationTestBase() {
                     it.readObject() as T
                 }
             }
-            connected = runWithTimeout { clientAwait.await() }
+            connected = runWithTimeout { clientAwait.await() } ?: false
         }
         assert(connected)
         log.info("read")

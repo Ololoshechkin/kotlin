@@ -7,16 +7,12 @@
 
 package org.jetbrains.kotlin.daemon.common.experimental
 
-import kotlinx.coroutines.experimental.runBlocking
 import org.jetbrains.kotlin.cli.common.repl.ReplCheckResult
 import org.jetbrains.kotlin.cli.common.repl.ReplCodeLine
 import org.jetbrains.kotlin.cli.common.repl.ReplCompileResult
 import org.jetbrains.kotlin.daemon.common.*
 import org.jetbrains.kotlin.daemon.common.CompileService.CallResult
-import org.jetbrains.kotlin.daemon.common.experimental.socketInfrastructure.ByteWriteChannelWrapper
-import org.jetbrains.kotlin.daemon.common.experimental.socketInfrastructure.Client
-import org.jetbrains.kotlin.daemon.common.experimental.socketInfrastructure.DefaultAuthorizableClient
-import org.jetbrains.kotlin.daemon.common.experimental.socketInfrastructure.Server
+import org.jetbrains.kotlin.daemon.common.experimental.socketInfrastructure.*
 import java.io.File
 import java.util.logging.Logger
 
@@ -32,12 +28,16 @@ class CompileServiceClientSideImpl(
 ) : CompileServiceClientSide,
     Client<CompileServiceServerSide> by object : DefaultAuthorizableClient<CompileServiceServerSide>(serverPort, serverHost) {
 
-        override fun authorizeOnServer(serverOutputChannel: ByteWriteChannelWrapper) {
-            runBlocking {
+        override suspend fun authorizeOnServer(serverOutputChannel: ByteWriteChannelWrapper): Boolean =
+            runWithTimeout {
                 log.info("in authoriseOnServer(serverFile=$serverFile)")
                 val signature = serverFile.inputStream().use(::readTokenKeyPairAndSign)
                 sendSignature(serverOutputChannel, signature)
-            }
+                true
+            } ?: false
+
+        override suspend fun clientHandshake(input: ByteReadChannelWrapper, output: ByteWriteChannelWrapper, log: Logger): Boolean {
+            return trySendHandshakeMessage(output, log) && tryAcquireHandshakeMessage(input, log)
         }
 
     } {
@@ -51,8 +51,8 @@ class CompileServiceClientSideImpl(
         servicesFacade: CompilerServicesFacadeBaseClientSide,
         compilationResults: CompilationResultsClientSide?
     ): CallResult<Int> {
-        sendMessage(CompileMessage(sessionId, compilerArguments, compilationOptions, servicesFacade, compilationResults)).await()
-        return readMessage<CallResult<Int>>().await()
+        sendMessage(CompileMessage(sessionId, compilerArguments, compilationOptions, servicesFacade, compilationResults))
+        return readMessage<CallResult<Int>>()
     }
 
     override suspend fun leaseReplSession(
@@ -72,8 +72,8 @@ class CompileServiceClientSideImpl(
                 templateClasspath,
                 templateClassName
             )
-        ).await()
-        return readMessage<CallResult<Int>>().await()
+        )
+        return readMessage<CallResult<Int>>()
     }
 
     // CompileService methods:
@@ -83,45 +83,45 @@ class CompileServiceClientSideImpl(
             CheckCompilerIdMessage(
                 expectedCompilerId
             )
-        ).await()
-        return readMessage<Boolean>().await()
+        )
+        return readMessage<Boolean>()
     }
 
     override suspend fun getUsedMemory(): CallResult<Long> {
-        sendMessage(GetUsedMemoryMessage()).await()
-        return readMessage<CallResult<Long>>().await()
+        sendMessage(GetUsedMemoryMessage())
+        return readMessage<CallResult<Long>>()
     }
 
 
     override suspend fun getDaemonOptions(): CallResult<DaemonOptions> {
-        sendMessage(GetDaemonOptionsMessage()).await()
-        return readMessage<CallResult<DaemonOptions>>().await()
+        sendMessage(GetDaemonOptionsMessage())
+        return readMessage<CallResult<DaemonOptions>>()
     }
 
     override suspend fun getDaemonInfo(): CallResult<String> {
-        sendMessage(GetDaemonInfoMessage()).await()
-        return readMessage<CallResult<String>>().await()
+        sendMessage(GetDaemonInfoMessage())
+        return readMessage<CallResult<String>>()
     }
 
     override suspend fun getDaemonJVMOptions(): CallResult<DaemonJVMOptions> {
         log.info("sending message (GetDaemonJVMOptionsMessage) ... (deaemon port = $serverPort)")
-        sendMessage(GetDaemonJVMOptionsMessage()).await()
+        sendMessage(GetDaemonJVMOptionsMessage())
         log.info("message is sent!")
         val resAsync = readMessage<CallResult<DaemonJVMOptions>>()
         log.info("reading message...")
-        val res = resAsync.await()
+        val res = resAsync
         log.info("reply : $res")
         return res
     }
 
     override suspend fun registerClient(aliveFlagPath: String?): CallResult<Nothing> {
-        sendMessage(RegisterClientMessage(aliveFlagPath)).await()
-        return readMessage<CallResult<Nothing>>().await()
+        sendMessage(RegisterClientMessage(aliveFlagPath))
+        return readMessage<CallResult<Nothing>>()
     }
 
     override suspend fun getClients(): CallResult<List<String>> {
-        sendMessage(GetClientsMessage()).await()
-        return readMessage<CallResult<List<String>>>().await()
+        sendMessage(GetClientsMessage())
+        return readMessage<CallResult<List<String>>>()
     }
 
     override suspend fun leaseCompileSession(aliveFlagPath: String?): CallResult<Int> {
@@ -129,8 +129,8 @@ class CompileServiceClientSideImpl(
             LeaseCompileSessionMessage(
                 aliveFlagPath
             )
-        ).await()
-        return readMessage<CallResult<Int>>().await()
+        )
+        return readMessage<CallResult<Int>>()
     }
 
     override suspend fun releaseCompileSession(sessionId: Int): CallResult<Nothing> {
@@ -138,18 +138,18 @@ class CompileServiceClientSideImpl(
             ReleaseCompileSessionMessage(
                 sessionId
             )
-        ).await()
-        return readMessage<CallResult<Nothing>>().await()
+        )
+        return readMessage<CallResult<Nothing>>()
     }
 
     override suspend fun shutdown(): CallResult<Nothing> {
-        sendMessage(ShutdownMessage()).await()
-        return readMessage<CallResult<Nothing>>().await()
+        sendMessage(ShutdownMessage())
+        return readMessage<CallResult<Nothing>>()
     }
 
     override suspend fun scheduleShutdown(graceful: Boolean): CallResult<Boolean> {
-        sendMessage(ScheduleShutdownMessage(graceful)).await()
-        return readMessage<CallResult<Boolean>>().await()
+        sendMessage(ScheduleShutdownMessage(graceful))
+        return readMessage<CallResult<Boolean>>()
     }
 
     override suspend fun clearJarCache() {
@@ -157,13 +157,13 @@ class CompileServiceClientSideImpl(
     }
 
     override suspend fun releaseReplSession(sessionId: Int): CallResult<Nothing> {
-        sendMessage(ReleaseReplSessionMessage(sessionId)).await()
-        return readMessage<CallResult<Nothing>>().await()
+        sendMessage(ReleaseReplSessionMessage(sessionId))
+        return readMessage<CallResult<Nothing>>()
     }
 
     override suspend fun replCreateState(sessionId: Int): CallResult<ReplStateFacadeClientSide> {
-        sendMessage(ReplCreateStateMessage(sessionId)).await()
-        return readMessage<CallResult<ReplStateFacadeClientSide>>().await()
+        sendMessage(ReplCreateStateMessage(sessionId))
+        return readMessage<CallResult<ReplStateFacadeClientSide>>()
     }
 
     override suspend fun replCheck(
@@ -177,8 +177,8 @@ class CompileServiceClientSideImpl(
                 replStateId,
                 codeLine
             )
-        ).await()
-        return readMessage<CallResult<ReplCheckResult>>().await()
+        )
+        return readMessage<CallResult<ReplCheckResult>>()
     }
 
     override suspend fun replCompile(
@@ -192,8 +192,8 @@ class CompileServiceClientSideImpl(
                 replStateId,
                 codeLine
             )
-        ).await()
-        return readMessage<CallResult<ReplCompileResult>>().await()
+        )
+        return readMessage<CallResult<ReplCompileResult>>()
     }
 
     // Query messages:
