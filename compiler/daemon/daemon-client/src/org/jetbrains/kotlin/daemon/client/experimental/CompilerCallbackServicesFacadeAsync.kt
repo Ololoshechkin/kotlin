@@ -5,7 +5,9 @@
 
 package org.jetbrains.kotlin.daemon.client.experimental
 
+import io.ktor.network.sockets.Socket
 import org.jetbrains.kotlin.daemon.common.experimental.*
+import org.jetbrains.kotlin.daemon.common.experimental.socketInfrastructure.Server
 
 import org.jetbrains.kotlin.incremental.components.LookupInfo
 import org.jetbrains.kotlin.incremental.components.LookupTracker
@@ -23,6 +25,8 @@ open class CompilerCallbackServicesFacadeServerSide(
     val compilationCanceledStatus: CompilationCanceledStatus? = null,
     override val serverSocketWithPort: ServerSocketWrapper = findCallbackServerSocket()
 ) : CompilerServicesFacadeBaseServerSide {
+
+    override val clients = hashMapOf<Socket, Server.ClientInfo>()
 
     private val log = Logger.getLogger("CompilerCallbackServicesFacadeServerSide")
 

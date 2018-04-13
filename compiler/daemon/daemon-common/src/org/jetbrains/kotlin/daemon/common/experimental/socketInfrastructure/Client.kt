@@ -22,6 +22,7 @@ interface Client<ServerType : ServerBase> : Serializable, AutoCloseable {
 
     fun sendMessage(msg: Server.AnyMessage<out ServerType>)
     fun <T> readMessage(): T
+
 }
 
 @Suppress("UNCHECKED_CAST")
@@ -49,18 +50,17 @@ abstract class DefaultAuthorizableClient<ServerType : ServerBase>(
     abstract suspend fun clientHandshake(input: ByteReadChannelWrapper, output: ByteWriteChannelWrapper, log: Logger): Boolean
 
     override fun close() {
-//        try {
-//            runBlocking {
-//                runWithTimeout {
-//                    output.writeObject(Server.EndConnectionMessage<ServerType>())
-//                }
-//            }
-//        } catch (e: Throwable) {
-//            log.info(e.message)
-//        } finally {
-//            socket?.close()
-//        }
-        socket?.close()
+        try {
+            runBlocking {
+                runWithTimeout {
+                    output.writeObject(Server.EndConnectionMessage<ServerType>())
+                }
+            }
+        } catch (e: Throwable) {
+            log.info(e.message)
+        } finally {
+            socket?.close()
+        }
     }
 
     override fun sendMessage(msg: Server.AnyMessage<out ServerType>) = runBlocking {

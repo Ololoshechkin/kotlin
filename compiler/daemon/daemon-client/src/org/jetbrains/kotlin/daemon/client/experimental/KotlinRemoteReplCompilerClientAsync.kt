@@ -62,11 +62,18 @@ open class KotlinRemoteReplCompilerClientAsync(
     }
 
     override fun createState(lock: ReentrantReadWriteLock): IReplStageState<*> =
-        runBlocking { RemoteReplCompilerStateAsync(compileService.replCreateState(sessionId).get(), lock) }
+        runBlocking {
+            println("creating state...")
+            val stateRes = compileService.replCreateState(sessionId)
+            println("stateRes = $stateRes")
+            val state = stateRes.get()
+            println("state = $state")
+            RemoteReplCompilerStateAsync(state, lock)
+        }
 
     override fun check(state: IReplStageState<*>, codeLine: ReplCodeLine): ReplCheckResult =
-        runBlocking { compileService.replCheck(sessionId, state.asState(RemoteReplCompilerState::class.java).replStateFacade.getId(), codeLine).get() }
+        runBlocking { compileService.replCheck(sessionId, state.asState(RemoteReplCompilerStateAsync::class.java).replStateFacade.getId(), codeLine).get() }
 
     override fun compile(state: IReplStageState<*>, codeLine: ReplCodeLine): ReplCompileResult =
-        runBlocking { compileService.replCompile(sessionId, state.asState(RemoteReplCompilerState::class.java).replStateFacade.getId(), codeLine).get() }
+        runBlocking { compileService.replCompile(sessionId, state.asState(RemoteReplCompilerStateAsync::class.java).replStateFacade.getId(), codeLine).get() }
 }
