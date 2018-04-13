@@ -5,15 +5,21 @@
 
 package org.jetbrains.kotlin.daemon.experimental.unit
 
+import junit.framework.TestCase
 import kotlinx.coroutines.experimental.Deferred
 import kotlinx.coroutines.experimental.delay
 import kotlinx.coroutines.experimental.runBlocking
 import org.jetbrains.kotlin.cli.common.CLICompiler
+import org.jetbrains.kotlin.cli.common.messages.MessageRenderer
+import org.jetbrains.kotlin.cli.common.messages.PrintingMessageCollector
 import org.jetbrains.kotlin.cli.js.K2JSCompiler
 import org.jetbrains.kotlin.cli.jvm.K2JVMCompiler
 import org.jetbrains.kotlin.cli.metadata.K2MetadataCompiler
 import org.jetbrains.kotlin.daemon.CompileServiceImpl
 import org.jetbrains.kotlin.daemon.CompilerSelector
+import org.jetbrains.kotlin.daemon.client.experimental.BasicCompilerServicesWithResultsFacadeServerServerSide
+import org.jetbrains.kotlin.daemon.client.experimental.KotlinCompilerClient
+import org.jetbrains.kotlin.daemon.client.experimental.findCallbackServerSocket
 import org.jetbrains.kotlin.daemon.common.*
 import org.jetbrains.kotlin.daemon.common.experimental.CompileServiceClientSide
 import org.jetbrains.kotlin.daemon.common.experimental.DaemonWithMetadataAsync
@@ -22,12 +28,18 @@ import org.jetbrains.kotlin.daemon.common.experimental.walkDaemonsAsync
 import org.jetbrains.kotlin.daemon.experimental.CompileServiceServerSideImpl
 import org.jetbrains.kotlin.daemon.loggerCompatiblePath
 import org.jetbrains.kotlin.integration.KotlinIntegrationTestBase
+import org.jetbrains.kotlin.test.KotlinTestUtils
+import sun.tools.jar.resources.jar
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
+import java.io.PrintStream
 import java.util.*
+import java.util.concurrent.CountDownLatch
 import java.util.logging.LogManager
 import java.util.logging.Logger
 import kotlin.concurrent.schedule
+import kotlin.concurrent.thread
 
 
 class ConnectionsTest : KotlinIntegrationTestBase() {
@@ -316,6 +328,55 @@ class ConnectionsTest : KotlinIntegrationTestBase() {
                     -100500L
                 }
                 assertTrue(mem == -100500L)
+            }
+        }
+    }
+
+
+    fun testCompile() {
+        runNewServer()
+        expectNewDaemon(ServerType.NEW) { daemon ->
+            val outStream = ByteArrayOutputStream()
+            val msgCollector = PrintingMessageCollector(PrintStream(outStream), MessageRenderer.WITHOUT_PATHS, true)
+            val codes = (0 until 10).toMutableList()
+            fun runThread(i: Int) {
+                thread {
+                    val jar = tmpdir.absolutePath + File.separator + "hello.$i.jar"
+                    val code = runBlocking {
+                        val services = BasicCompilerServicesWithResultsFacadeServerServerSide(msgCollector, { _, _ -> }, findCallbackServerSocket())
+                        val serverRun = services.runServer()
+                        daemon.compile(
+                            CompileService.NO_SESSION,
+                            arrayOf(
+                                "-include-runtime",
+                                File(KotlinTestUtils.getTestDataPathBase() + "/integration/smoke/helloApp", "hello.kt").absolutePath,
+                                "-d",
+                                jar
+                            ),
+                            CompilationOptions(
+                                CompilerMode.NON_INCREMENTAL_COMPILER,
+                                CompileService.TargetPlatform.JVM,
+                                arrayOf(
+                                    ReportCategory.COMPILER_MESSAGE.code,
+                                    ReportCategory.DAEMON_MESSAGE.code,
+                                    ReportCategory.EXCEPTION.code,
+                                    ReportCategory.OUTPUT_MESSAGE.code
+                                ),
+                                ReportSeverity.INFO.code,
+                                emptyArray()
+                            ),
+                            services.clientSide,
+                            null
+                        )
+                    }.get().also { println("CODE = $it") }
+                    codes[i] = code
+                }
+            }
+            (0 until 10).forEach(::runThread)
+            runBlocking {
+                delay(20000L)
+                codes.forEach { println(it) }
+                assertTrue(codes.all { it == 0 })
             }
         }
     }

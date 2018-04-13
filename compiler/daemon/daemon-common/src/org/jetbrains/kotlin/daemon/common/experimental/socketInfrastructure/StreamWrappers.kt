@@ -70,7 +70,7 @@ class ByteReadChannelWrapper(readChannel: ByteReadChannel, private val log: Logg
                     }
                 }
             } else {
-                println("read chanel closed")
+                println("read chanel closed " + log.name)
             }
         }
     }
@@ -145,26 +145,36 @@ class ByteWriteChannelWrapper(writeChannel: ByteWriteChannel, private val log: L
     private class CloseMessage: WriteActorQuery
 
     private suspend fun tryPrint(b: Byte, writeChannel: ByteWriteChannel) {
-        try {
-            writeChannel.writeByte(b)
-        } catch (e: IOException) {
-            log.info("failed to print message, ${e.message}")
+        if (!writeChannel.isClosedForWrite) {
+            try {
+                writeChannel.writeByte(b)
+            } catch (e: IOException) {
+                log.info("failed to print message, ${e.message}")
+            }
+        } else {
+            log.info("closed chanel (write)")
         }
     }
 
     private val writeActor = actor<WriteActorQuery> {
         consumeEach { message ->
-            if (!channel.isClosedForSend) {
+            if (!writeChannel.isClosedForWrite) {
                 when (message) {
                     is CloseMessage -> {
                         println("closing chanel...")
-                        channel.close()
+                        writeChannel.close()
                     }
                     is ByteData -> {
                         message.toByteArray().forEach {
                             tryPrint(it, writeChannel)
                         }
-                        writeChannel.flush()
+                        if (!writeChannel.isClosedForWrite) {
+                            try {
+                                writeChannel.flush()
+                            } catch (e: IOException) {
+                                log.info("failed to flush byte write chanel")
+                            }
+                        }
                     }
                 }
             } else {

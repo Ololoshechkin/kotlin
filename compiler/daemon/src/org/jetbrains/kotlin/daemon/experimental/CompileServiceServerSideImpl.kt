@@ -135,7 +135,7 @@ class CompileServiceServerSideImpl(
         System.setProperty(KOTLIN_COMPILER_ENVIRONMENT_KEEPALIVE_PROPERTY, "true")
 
         // TODO UNCOMMENT THIS : this.toRMIServer(daemonOptions, compilerId) // also create RMI server in order to support old clients
-//        this.toRMIServer(daemonOptions, compilerId)
+        this.toRMIServer(daemonOptions, compilerId)
 
         timer.schedule(10) {
             exceptionLoggingTimerThread { initiateElections() }
