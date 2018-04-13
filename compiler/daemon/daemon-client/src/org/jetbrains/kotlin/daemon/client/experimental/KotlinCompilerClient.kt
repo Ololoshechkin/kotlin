@@ -185,22 +185,22 @@ object KotlinCompilerClient {
             log.info("[BasicCompilerServicesWithResultsFacadeServerServerSide] services.runServer()")
             val serverRun = services.runServer()
             compilerService.compile(
-                sessionId,
-                args,
-                CompilationOptions(
-                    compilerMode,
-                    targetPlatform,
-                    arrayOf(
-                        ReportCategory.COMPILER_MESSAGE.code,
-                        ReportCategory.DAEMON_MESSAGE.code,
-                        ReportCategory.EXCEPTION.code,
-                        ReportCategory.OUTPUT_MESSAGE.code
-                    ),
-                    reportSeverity.code,
-                    emptyArray()
+                    sessionId,
+            args,
+            CompilationOptions(
+                compilerMode,
+                targetPlatform,
+                arrayOf(
+                    ReportCategory.COMPILER_MESSAGE.code,
+                    ReportCategory.DAEMON_MESSAGE.code,
+                    ReportCategory.EXCEPTION.code,
+                    ReportCategory.OUTPUT_MESSAGE.code
                 ),
-                services.clientSide,
-                null
+                reportSeverity.code,
+                emptyArray()
+            ),
+            services.clientSide,
+            null
             )
         }.get().also { log.info("CODE = $it") }
     }

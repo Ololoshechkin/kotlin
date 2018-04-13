@@ -1,9 +1,6 @@
 package org.jetbrains.kotlin.daemon.common.experimental.socketInfrastructure
 
-import com.sun.deploy.si.SingleInstanceManager.connectToServer
 import io.ktor.network.sockets.Socket
-import kotlinx.coroutines.experimental.Deferred
-import kotlinx.coroutines.experimental.async
 import kotlinx.coroutines.experimental.runBlocking
 import org.jetbrains.kotlin.daemon.common.experimental.LoopbackNetworkInterface
 import sun.net.ConnectionResetException
@@ -12,7 +9,6 @@ import java.io.IOException
 import java.io.ObjectInputStream
 import java.io.ObjectOutputStream
 import java.io.Serializable
-import java.util.concurrent.locks.ReentrantLock
 import java.util.logging.Logger
 
 
