@@ -5,6 +5,7 @@
 
 package org.jetbrains.kotlin.daemon.client.experimental
 
+import io.ktor.network.sockets.Socket
 import kotlinx.coroutines.experimental.async
 import kotlinx.coroutines.experimental.runBlocking
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
@@ -12,6 +13,7 @@ import org.jetbrains.kotlin.cli.common.messages.MessageCollector
 import org.jetbrains.kotlin.daemon.client.DaemonReportMessage
 import org.jetbrains.kotlin.daemon.common.*
 import org.jetbrains.kotlin.daemon.common.experimental.*
+import org.jetbrains.kotlin.daemon.common.experimental.socketInfrastructure.Server
 import org.jetbrains.kotlin.incremental.components.LookupTracker
 import org.jetbrains.kotlin.load.kotlin.incremental.components.IncrementalCompilationComponents
 import org.jetbrains.kotlin.progress.CompilationCanceledStatus
@@ -298,6 +300,8 @@ object KotlinCompilerClient {
                     val startTime = System.nanoTime()
 
                     val compResults = object : CompilationResultsServerSide {
+
+                        override val clients = hashMapOf<Socket, Server.ClientInfo>()
 
                         override val serverSocketWithPort: ServerSocketWrapper
                             get() = resultsPort

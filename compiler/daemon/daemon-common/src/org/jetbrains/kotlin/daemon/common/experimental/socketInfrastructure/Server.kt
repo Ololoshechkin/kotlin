@@ -54,6 +54,7 @@ interface Server<out T : ServerBase> : ServerBase {
             return@async Server.State.UNVERIFIED
         }
         log.info("   client verified ($client)")
+        clients[client] = ClientInfo(client, input, output)
         var finalState = Server.State.WORKING
         loop@
         while (true) {
@@ -69,7 +70,7 @@ interface Server<out T : ServerBase> : ServerBase {
                 Server.State.WORKING -> continue@loop
                 Server.State.ERROR -> {
                     log.info("ERROR after processing message")
-                    finalState = Server.State.DOWNING
+                    finalState = Server.State.ERROR
                     break@loop
                 }
                 else -> {
@@ -91,6 +92,10 @@ interface Server<out T : ServerBase> : ServerBase {
 
     class ServerDownMessage<ServerType : ServerBase> : AnyMessage<ServerType>
 
+    data class ClientInfo(val socket: Socket, val input: ByteReadChannelWrapper, val output: ByteWriteChannelWrapper)
+
+    val clients: HashMap<Socket, ClientInfo>
+
     fun runServer(): Deferred<Unit> {
         log.info("binding to address(${serverSocketWithPort.port})")
         val serverSocket = serverSocketWithPort.socket
@@ -105,21 +110,35 @@ interface Server<out T : ServerBase> : ServerBase {
                         log.info("finished ($client) with state : $state")
                         when (state) {
                             Server.State.CLOSED, State.UNVERIFIED -> {
-                                client.close()
+                                downClient(client)
                             }
                             Server.State.DOWNING -> {
-                                client.close()
-                                // TODO Down server
+                                downServer()
                             }
                             else -> {
-                                client.close()
-                                // todo
+                                downClient(client)
                             }
                         }
                     }
                 }
             }
         }
+    }
+
+    fun downServer() {
+        clients.forEach { socket, info ->
+            runBlockingWithTimeout {
+                info.output.writeObject(ServerDownMessage<T>())
+                info.output.close()
+            }
+            socket.close()
+        }
+        clients.clear()
+    }
+
+    private fun downClient(client: Socket) {
+        clients.remove(client)
+        client.close()
     }
 
     suspend fun securityCheck(clientInputChannel: ByteReadChannelWrapper): Boolean = true
@@ -139,7 +158,7 @@ suspend fun <T> runWithTimeout(
 suspend fun tryAcquireHandshakeMessage(input: ByteReadChannelWrapper, log: Logger): Boolean {
     log.info("tryAcquireHandshakeMessage")
     val bytes = runWithTimeout {
-        input.readBytes(FIRST_HANDSHAKE_BYTE_TOKEN.size)
+        input.nextBytes()
     } ?: return false.also { log.info("tryAcquireHandshakeMessage - FAIL") }
     log.info("bytes : ${bytes.toList()}")
     if (bytes.zip(FIRST_HANDSHAKE_BYTE_TOKEN).any { it.first != it.second }) {
@@ -155,7 +174,7 @@ suspend fun tryAcquireHandshakeMessage(input: ByteReadChannelWrapper, log: Logge
 suspend fun trySendHandshakeMessage(output: ByteWriteChannelWrapper, log: Logger): Boolean {
     log.info("trySendHandshakeMessage")
     runWithTimeout {
-        output.printBytes(FIRST_HANDSHAKE_BYTE_TOKEN)
+        output.printBytesAndLength(FIRST_HANDSHAKE_BYTE_TOKEN.size, FIRST_HANDSHAKE_BYTE_TOKEN)
     } ?: return false.also { log.info("trySendHandshakeMessage - FAIL") }
     log.info("trySendHandshakeMessage - SUCCESS")
     return true

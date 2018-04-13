@@ -5,6 +5,7 @@
 
 package org.jetbrains.kotlin.daemon.experimental
 
+import io.ktor.network.sockets.Socket
 import org.jetbrains.kotlin.cli.common.repl.ILineId
 import org.jetbrains.kotlin.cli.jvm.repl.GenericReplCompilerState
 import org.jetbrains.kotlin.daemon.common.COMPILE_DAEMON_FIND_PORT_ATTEMPTS
@@ -21,6 +22,8 @@ class RemoteReplStateFacadeServerSide(
         REPL_SERVER_PORTS_RANGE_END
     )
 ) : ReplStateFacadeServerSide {
+
+    override val clients = hashMapOf<Socket, Server.ClientInfo>()
 
     override suspend fun getId(): Int = _id
 

@@ -7,6 +7,7 @@ package org.jetbrains.kotlin.daemon.common.experimental
 
 import io.ktor.network.sockets.aSocket
 import kotlinx.coroutines.experimental.async
+import kotlinx.coroutines.experimental.future.await
 import org.jetbrains.kotlin.daemon.common.SimpleDirtyData
 import org.jetbrains.kotlin.daemon.common.experimental.socketInfrastructure.*
 import java.beans.Transient
