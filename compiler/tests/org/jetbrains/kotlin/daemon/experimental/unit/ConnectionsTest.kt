@@ -5,7 +5,6 @@
 
 package org.jetbrains.kotlin.daemon.experimental.unit
 
-import junit.framework.TestCase
 import kotlinx.coroutines.experimental.Deferred
 import kotlinx.coroutines.experimental.delay
 import kotlinx.coroutines.experimental.runBlocking
@@ -18,24 +17,17 @@ import org.jetbrains.kotlin.cli.metadata.K2MetadataCompiler
 import org.jetbrains.kotlin.daemon.CompileServiceImpl
 import org.jetbrains.kotlin.daemon.CompilerSelector
 import org.jetbrains.kotlin.daemon.client.experimental.BasicCompilerServicesWithResultsFacadeServerServerSide
-import org.jetbrains.kotlin.daemon.client.experimental.KotlinCompilerClient
-import org.jetbrains.kotlin.daemon.client.experimental.findCallbackServerSocket
 import org.jetbrains.kotlin.daemon.common.*
-import org.jetbrains.kotlin.daemon.common.experimental.CompileServiceClientSide
-import org.jetbrains.kotlin.daemon.common.experimental.DaemonWithMetadataAsync
-import org.jetbrains.kotlin.daemon.common.experimental.findPortForSocket
-import org.jetbrains.kotlin.daemon.common.experimental.walkDaemonsAsync
+import org.jetbrains.kotlin.daemon.common.experimental.*
 import org.jetbrains.kotlin.daemon.experimental.CompileServiceServerSideImpl
 import org.jetbrains.kotlin.daemon.loggerCompatiblePath
 import org.jetbrains.kotlin.integration.KotlinIntegrationTestBase
 import org.jetbrains.kotlin.test.KotlinTestUtils
-import sun.tools.jar.resources.jar
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
 import java.io.PrintStream
 import java.util.*
-import java.util.concurrent.CountDownLatch
 import java.util.logging.LogManager
 import java.util.logging.Logger
 import kotlin.concurrent.schedule
@@ -335,7 +327,8 @@ class ConnectionsTest : KotlinIntegrationTestBase() {
 
     fun testCompile() {
         runNewServer()
-        expectNewDaemon(ServerType.NEW) { daemon ->
+        expectNewDaemon(ServerType.ANY) { daemon ->
+            assertTrue(daemon !is CompileServiceAsyncWrapper)
             val outStream = ByteArrayOutputStream()
             val msgCollector = PrintingMessageCollector(PrintStream(outStream), MessageRenderer.WITHOUT_PATHS, true)
             val codes = (0 until 10).toMutableList()
@@ -343,7 +336,11 @@ class ConnectionsTest : KotlinIntegrationTestBase() {
                 thread {
                     val jar = tmpdir.absolutePath + File.separator + "hello.$i.jar"
                     val code = runBlocking {
-                        val services = BasicCompilerServicesWithResultsFacadeServerServerSide(msgCollector, { _, _ -> }, findCallbackServerSocket())
+                        val services = BasicCompilerServicesWithResultsFacadeServerServerSide(
+                            msgCollector,
+                            { _, _ -> },
+                            findCallbackServerSocket()
+                        )
                         val serverRun = services.runServer()
                         daemon.compile(
                             CompileService.NO_SESSION,

@@ -44,28 +44,28 @@ class RemoteReplStateFacadeServerSide(
 class RemoteReplStateFacadeClientSide(val serverPort: Int) : ReplStateFacadeClientSide, Client<ReplStateFacadeServerSide> by DefaultClient(serverPort) {
 
     override suspend fun getId(): Int {
-        sendMessage(ReplStateFacadeServerSide.GetIdMessage())
-        return readMessage<Int>()
+        val id = sendMessage(ReplStateFacadeServerSide.GetIdMessage())
+        return readMessage(id)
     }
 
     override suspend fun getHistorySize(): Int {
-        sendMessage(ReplStateFacadeServerSide.GetHistorySizeMessage())
-        return readMessage<Int>()
+        val id = sendMessage(ReplStateFacadeServerSide.GetHistorySizeMessage())
+        return readMessage(id)
     }
 
     override suspend fun historyGet(index: Int): ILineId {
-        sendMessage(ReplStateFacadeServerSide.HistoryGetMessage(index))
-        return readMessage<ILineId>()
+        val id = sendMessage(ReplStateFacadeServerSide.HistoryGetMessage(index))
+        return readMessage(id)
     }
 
     override suspend fun historyReset(): List<ILineId> {
-        sendMessage(ReplStateFacadeServerSide.HistoryResetMessage())
-        return readMessage<List<ILineId>>()
+        val id = sendMessage(ReplStateFacadeServerSide.HistoryResetMessage())
+        return readMessage(id)
     }
 
     override suspend fun historyResetTo(id: ILineId): List<ILineId> {
-        sendMessage(ReplStateFacadeServerSide.HistoryResetToMessage(id))
-        return readMessage<List<ILineId>>()
+        val id = sendMessage(ReplStateFacadeServerSide.HistoryResetToMessage(id))
+        return readMessage(id)
     }
 
 }

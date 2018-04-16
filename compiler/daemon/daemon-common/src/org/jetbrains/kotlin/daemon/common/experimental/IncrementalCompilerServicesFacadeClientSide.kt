@@ -23,33 +23,33 @@ class IncrementalCompilerServicesFacadeClientSideImpl(val serverPort: Int) :
     Client<CompilerServicesFacadeBaseServerSide> by DefaultClient(serverPort) {
 
     override suspend fun hasAnnotationsFileUpdater(): Boolean {
-        sendMessage(HasAnnotationsFileUpdaterMessage())
-        return readMessage<Boolean>()
+        val id = sendMessage(HasAnnotationsFileUpdaterMessage())
+        return readMessage(id)
     }
 
     override suspend fun updateAnnotations(outdatedClassesJvmNames: Iterable<String>) {
-        sendMessage(UpdateAnnotationsMessage(outdatedClassesJvmNames))
+        val id = sendMessage(UpdateAnnotationsMessage(outdatedClassesJvmNames))
     }
 
     override suspend fun revert() {
-        sendMessage(RevertMessage())
+        val id = sendMessage(RevertMessage())
     }
 
     override suspend fun registerChanges(timestamp: Long, dirtyData: SimpleDirtyData) {
-        sendMessage(RegisterChangesMessage(timestamp, dirtyData))
+        val id = sendMessage(RegisterChangesMessage(timestamp, dirtyData))
     }
 
     override suspend fun unknownChanges(timestamp: Long) {
-        sendMessage(UnknownChangesMessage(timestamp))
+        val id = sendMessage(UnknownChangesMessage(timestamp))
     }
 
     override suspend fun getChanges(artifact: File, sinceTS: Long): Iterable<SimpleDirtyData>? {
-        sendMessage(HasAnnotationsFileUpdaterMessage())
-        return readMessage<Iterable<SimpleDirtyData>?>()
+        val id = sendMessage(HasAnnotationsFileUpdaterMessage())
+        return readMessage(id)
     }
 
     override suspend fun report(category: Int, severity: Int, message: String?, attachment: Serializable?) {
-        sendMessage(CompilerServicesFacadeBaseServerSide.ReportMessage(category, severity, message, attachment))
+        val id = sendMessage(CompilerServicesFacadeBaseServerSide.ReportMessage(category, severity, message, attachment))
     }
 
 }

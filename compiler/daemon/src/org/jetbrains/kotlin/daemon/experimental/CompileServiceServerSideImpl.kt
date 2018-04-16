@@ -135,7 +135,7 @@ class CompileServiceServerSideImpl(
         System.setProperty(KOTLIN_COMPILER_ENVIRONMENT_KEEPALIVE_PROPERTY, "true")
 
         // TODO UNCOMMENT THIS : this.toRMIServer(daemonOptions, compilerId) // also create RMI server in order to support old clients
-        this.toRMIServer(daemonOptions, compilerId)
+//        this.toRMIServer(daemonOptions, compilerId)
 
         timer.schedule(10) {
             exceptionLoggingTimerThread { initiateElections() }
@@ -393,6 +393,7 @@ class CompileServiceServerSideImpl(
         compilationResults: CompilationResultsClientSide?
     ): CompileService.CallResult<Int> = ifAlive {
         //        compilationResults?.connectToServer()
+        log.info("servicesFacade : $servicesFacade")
         val messageCollector = CompileServicesFacadeMessageCollector(servicesFacade, compilationOptions)
         val daemonReporter = DaemonMessageReporterAsync(servicesFacade, compilationOptions)
         val targetPlatform = compilationOptions.targetPlatform
@@ -604,13 +605,7 @@ class CompileServiceServerSideImpl(
         ifAlive(minAliveness = Aliveness.Alive) {
             withValidRepl(sessionId) {
                 CompileService.CallResult.Good(
-                    createRemoteState(
-                        findPortForSocket(
-                            attempts = COMPILE_DAEMON_FIND_PORT_ATTEMPTS,
-                            portRangeStart = REPL_SERVER_PORTS_RANGE_START,
-                            portRangeEnd = REPL_SERVER_PORTS_RANGE_END
-                        )
-                    ).clientSide
+                    createRemoteState(findReplServerSocket()).clientSide
                 )
             }
         }
@@ -730,7 +725,7 @@ class CompileServiceServerSideImpl(
 
     // TODO: handover should include mechanism for client to switch to a new daemon then previous "handed over responsibilities" and shot down
     private fun initiateElections() {
-
+return
         ifAliveUnit {
 
             log.info("initiate elections")
@@ -835,8 +830,8 @@ class CompileServiceServerSideImpl(
         val currentCompilationsCount = compilationsCounter.get()
         log.info("Delayed shutdown in ${daemonOptions.shutdownDelayMilliseconds}ms")
         timer.schedule(daemonOptions.shutdownDelayMilliseconds) {
-            println(".......shutdowning........")
-            println("currentCompilationsCount = $currentCompilationsCount, compilationsCounter.get(): ${compilationsCounter.get()}")
+            println("${log.name} .......shutdowning........")
+            println("${log.name} currentCompilationsCount = $currentCompilationsCount, compilationsCounter.get(): ${compilationsCounter.get()}")
             state.delayedShutdownQueued.set(false)
             if (currentClientsCount == state.clientsCounter &&
                 currentCompilationsCount == compilationsCounter.get() &&
@@ -892,6 +887,7 @@ class CompileServiceServerSideImpl(
         body: (EventManager, Profiler) -> ExitCode
     ): CompileService.CallResult<Int> =
         ifAlive {
+            log.info("alive!")
             withValidClientOrSessionProxy(sessionId) {
                 tracer?.before("compile")
                 val rpcProfiler = if (daemonOptions.reportPerf) WallAndThreadTotalProfiler() else DummyProfiler()
@@ -979,6 +975,7 @@ class CompileServiceServerSideImpl(
         minAliveness: Aliveness = Aliveness.LastSession,
         body: () -> CompileService.CallResult<R>
     ): CompileService.CallResult<R> = rwlock.read {
+        println("alive?")
         ifAliveChecksImpl(minAliveness, body)
     }
 
@@ -1008,6 +1005,7 @@ class CompileServiceServerSideImpl(
         body: () -> CompileService.CallResult<R>
     ): CompileService.CallResult<R> {
         val curState = state.alive.get()
+        log.info("alive check? - state = $curState ; minAliveness.ordinal = ${minAliveness.ordinal}")
         return when {
             curState < minAliveness.ordinal -> {
                 log.info("Cannot perform operation, requested state: ${minAliveness.name} > actual: ${curState.toAlivenessName()}")
@@ -1015,6 +1013,7 @@ class CompileServiceServerSideImpl(
             }
             else -> {
                 try {
+                    println("alive!!!")
                     body()
                 } catch (e: Throwable) {
                     log.log(Level.SEVERE, "Exception", e)

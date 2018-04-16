@@ -82,15 +82,25 @@ interface Server<out T : ServerBase> : ServerBase {
         finalState
     }
 
-    interface AnyMessage<ServerType : ServerBase> : Serializable
-
-    interface Message<ServerType : ServerBase> : AnyMessage<ServerType> {
-        suspend fun process(server: ServerType, output: ByteWriteChannelWrapper)
+    abstract class AnyMessage<ServerType : ServerBase> : Serializable {
+        var messageId: Int? = null
+        fun withId(id: Int): AnyMessage<ServerType> {
+            messageId = id;
+            return this
+        }
     }
 
-    class EndConnectionMessage<ServerType : ServerBase> : AnyMessage<ServerType>
+    abstract class Message<ServerType : ServerBase> : AnyMessage<ServerType>() {
+        suspend fun process(server: ServerType, output: ByteWriteChannelWrapper) = processImpl(server, {
+            runBlocking { output.writeObject(DefaultAuthorizableClient.MessageReply(messageId!!, it)) }
+        })
 
-    class ServerDownMessage<ServerType : ServerBase> : AnyMessage<ServerType>
+        abstract suspend fun processImpl(server: ServerType, sendReply: (Any?) -> Unit)
+    }
+
+    class EndConnectionMessage<ServerType : ServerBase> : AnyMessage<ServerType>()
+
+    class ServerDownMessage<ServerType : ServerBase> : AnyMessage<ServerType>()
 
     data class ClientInfo(val socket: Socket, val input: ByteReadChannelWrapper, val output: ByteWriteChannelWrapper)
 
