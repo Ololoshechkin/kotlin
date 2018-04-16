@@ -5,6 +5,7 @@ import io.ktor.network.sockets.openReadChannel
 import io.ktor.network.sockets.openWriteChannel
 import kotlinx.coroutines.experimental.CompletableDeferred
 import kotlinx.coroutines.experimental.Deferred
+import kotlinx.coroutines.experimental.channels.Channel
 import kotlinx.coroutines.experimental.channels.actor
 import kotlinx.coroutines.experimental.channels.consumeEach
 import kotlinx.coroutines.experimental.io.ByteBuffer
@@ -47,7 +48,7 @@ class ByteReadChannelWrapper(readChannel: ByteReadChannel, private val log: Logg
             null
         }
 
-    private val readActor = actor<ReadQuery> {
+    private val readActor = actor<ReadQuery>(capacity = Channel.UNLIMITED) {
         consumeEach { message ->
             if (!readChannel.isClosedForRead) {
                 readLength(readChannel)?.let { messageLength ->
@@ -156,12 +157,12 @@ class ByteWriteChannelWrapper(writeChannel: ByteWriteChannel, private val log: L
         }
     }
 
-    private val writeActor = actor<WriteActorQuery> {
+    private val writeActor = actor<WriteActorQuery>(capacity = Channel.UNLIMITED) {
         consumeEach { message ->
             if (!writeChannel.isClosedForWrite) {
                 when (message) {
                     is CloseMessage -> {
-                        println("closing chanel...")
+                        log.info("${log.name} closing chanel...")
                         writeChannel.close()
                     }
                     is ByteData -> {
@@ -178,18 +179,19 @@ class ByteWriteChannelWrapper(writeChannel: ByteWriteChannel, private val log: L
                     }
                 }
             } else {
-                println("write chanel closed")
+                println("${log.name} write chanel closed")
             }
         }
     }
 
-    suspend fun printBytesAndLength(length: Int, bytes: ByteArray) =
+    suspend fun printBytesAndLength(length: Int, bytes: ByteArray) {
         writeActor.send(
             ObjectWithLength(
                 getLengthBytes(length),
                 bytes
             )
         )
+    }
 
 //    suspend fun printBytes(bytes: ByteArray) {
 //        writeActor.send(ByteData(bytes))

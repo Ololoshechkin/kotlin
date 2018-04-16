@@ -24,42 +24,42 @@ class CompilerCallbackServicesFacadeClientSideImpl(serverPort: Int) : CompilerCa
     Client<CompilerServicesFacadeBaseServerSide> by DefaultClient(serverPort) {
 
     override suspend fun hasIncrementalCaches(): Boolean {
-        sendMessage(CompilerCallbackServicesFacadeServerSide.HasIncrementalCachesMessage())
-        return readMessage<Boolean>()
+        val id = sendMessage(CompilerCallbackServicesFacadeServerSide.HasIncrementalCachesMessage())
+        return readMessage(id)
     }
 
     override suspend fun hasLookupTracker(): Boolean {
-        sendMessage(CompilerCallbackServicesFacadeServerSide.HasLookupTrackerMessage())
-        return readMessage<Boolean>()
+        val id = sendMessage(CompilerCallbackServicesFacadeServerSide.HasLookupTrackerMessage())
+        return readMessage(id)
     }
 
     override suspend fun hasCompilationCanceledStatus(): Boolean {
-        sendMessage(CompilerCallbackServicesFacadeServerSide.HasCompilationCanceledStatusMessage())
-        return readMessage<Boolean>()
+        val id = sendMessage(CompilerCallbackServicesFacadeServerSide.HasCompilationCanceledStatusMessage())
+        return readMessage(id)
     }
 
     override suspend fun incrementalCache_getObsoletePackageParts(target: TargetId): Collection<String> {
-        sendMessage(CompilerCallbackServicesFacadeServerSide.IncrementalCache_getObsoletePackagePartsMessage(target))
-        return readMessage<Collection<String>>()
+        val id = sendMessage(CompilerCallbackServicesFacadeServerSide.IncrementalCache_getObsoletePackagePartsMessage(target))
+        return readMessage(id)
     }
 
     override suspend fun incrementalCache_getObsoleteMultifileClassFacades(target: TargetId): Collection<String> {
-        sendMessage(CompilerCallbackServicesFacadeServerSide.IncrementalCache_getObsoleteMultifileClassFacadesMessage(target))
-        return readMessage<Collection<String>>()
+        val id = sendMessage(CompilerCallbackServicesFacadeServerSide.IncrementalCache_getObsoleteMultifileClassFacadesMessage(target))
+        return readMessage(id)
     }
 
     override suspend fun incrementalCache_getPackagePartData(target: TargetId, partInternalName: String): JvmPackagePartProto? {
-        sendMessage(CompilerCallbackServicesFacadeServerSide.IncrementalCache_getPackagePartDataMessage(target, partInternalName))
-        return readMessage<JvmPackagePartProto?>()
+        val id = sendMessage(CompilerCallbackServicesFacadeServerSide.IncrementalCache_getPackagePartDataMessage(target, partInternalName))
+        return readMessage(id)
     }
 
     override suspend fun incrementalCache_getModuleMappingData(target: TargetId): ByteArray? {
-        sendMessage(CompilerCallbackServicesFacadeServerSide.IncrementalCache_getModuleMappingDataMessage(target))
-        return readMessage<ByteArray?>()
+        val id = sendMessage(CompilerCallbackServicesFacadeServerSide.IncrementalCache_getModuleMappingDataMessage(target))
+        return readMessage(id)
     }
 
-    override suspend fun incrementalCache_registerInline(target: TargetId, fromPath: String, jvmSignature: String, toPath: String) =
-        sendMessage(
+    override suspend fun incrementalCache_registerInline(target: TargetId, fromPath: String, jvmSignature: String, toPath: String) {
+        sendNoReplyMessage(
             CompilerCallbackServicesFacadeServerSide.IncrementalCache_registerInlineMessage(
                 target,
                 fromPath,
@@ -67,40 +67,41 @@ class CompilerCallbackServicesFacadeClientSideImpl(serverPort: Int) : CompilerCa
                 toPath
             )
         )
+    }
 
     override suspend fun incrementalCache_getClassFilePath(target: TargetId, internalClassName: String): String {
-        sendMessage(CompilerCallbackServicesFacadeServerSide.IncrementalCache_getClassFilePathMessage(target, internalClassName))
-        return readMessage<String>()
+        val id = sendMessage(CompilerCallbackServicesFacadeServerSide.IncrementalCache_getClassFilePathMessage(target, internalClassName))
+        return readMessage(id)
     }
 
     override suspend fun incrementalCache_close(target: TargetId) =
-        sendMessage(CompilerCallbackServicesFacadeServerSide.IncrementalCache_closeMessage(target))
+        sendNoReplyMessage(CompilerCallbackServicesFacadeServerSide.IncrementalCache_closeMessage(target))
 
     override suspend fun incrementalCache_getMultifileFacadeParts(target: TargetId, internalName: String): Collection<String>? {
-        sendMessage(CompilerCallbackServicesFacadeServerSide.IncrementalCache_getMultifileFacadePartsMessage(target, internalName))
-        return readMessage<Collection<String>?>()
+        val id = sendMessage(CompilerCallbackServicesFacadeServerSide.IncrementalCache_getMultifileFacadePartsMessage(target, internalName))
+        return readMessage(id)
     }
 
     override suspend fun lookupTracker_requiresPosition(): Boolean {
-        sendMessage(CompilerCallbackServicesFacadeServerSide.LookupTracker_requiresPositionMessage())
-        return readMessage<Boolean>()
+        val id = sendMessage(CompilerCallbackServicesFacadeServerSide.LookupTracker_requiresPositionMessage())
+        return readMessage(id)
     }
 
     override suspend fun lookupTracker_record(lookups: Collection<LookupInfo>) =
-        sendMessage(CompilerCallbackServicesFacadeServerSide.LookupTracker_recordMessage(lookups))
+        sendNoReplyMessage(CompilerCallbackServicesFacadeServerSide.LookupTracker_recordMessage(lookups))
 
     override suspend fun lookupTracker_isDoNothing(): Boolean {
-        sendMessage(CompilerCallbackServicesFacadeServerSide.LookupTracker_isDoNothingMessage())
-        return readMessage<Boolean>()
+        val id = sendMessage(CompilerCallbackServicesFacadeServerSide.LookupTracker_isDoNothingMessage())
+        return readMessage(id)
     }
 
     override suspend fun compilationCanceledStatus_checkCanceled(): Void? {
-        sendMessage(CompilerCallbackServicesFacadeServerSide.CompilationCanceledStatus_checkCanceledMessage())
+        sendNoReplyMessage(CompilerCallbackServicesFacadeServerSide.CompilationCanceledStatus_checkCanceledMessage())
         return null
     }
 
     override suspend fun report(category: Int, severity: Int, message: String?, attachment: Serializable?) {
-        sendMessage(CompilerServicesFacadeBaseServerSide.ReportMessage(category, severity, message, attachment))
+        sendNoReplyMessage(CompilerServicesFacadeBaseServerSide.ReportMessage(category, severity, message, attachment))
     }
 
 }

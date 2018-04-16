@@ -8,10 +8,10 @@ package org.jetbrains.kotlin.daemon.client.experimental
 import kotlinx.coroutines.experimental.runBlocking
 import org.jetbrains.kotlin.cli.common.messages.MessageCollector
 import org.jetbrains.kotlin.cli.common.repl.*
-import org.jetbrains.kotlin.daemon.client.RemoteReplCompilerState
 import org.jetbrains.kotlin.daemon.common.*
 import org.jetbrains.kotlin.daemon.common.experimental.CompileServiceClientSide
 import org.jetbrains.kotlin.daemon.common.experimental.ServerSocketWrapper
+import org.jetbrains.kotlin.daemon.common.experimental.findCallbackServerSocket
 import java.io.File
 import java.util.concurrent.locks.ReentrantReadWriteLock
 
@@ -24,10 +24,9 @@ open class KotlinRemoteReplCompilerClientAsync(
     args: Array<out String>,
     messageCollector: MessageCollector,
     templateClasspath: List<File>,
-    templateClassName: String,
-    port: ServerSocketWrapper = findCallbackServerSocket()
+    templateClassName: String
 ) : ReplCompiler {
-    val services = BasicCompilerServicesWithResultsFacadeServerServerSide(messageCollector, null, port)
+    val services = BasicCompilerServicesWithResultsFacadeServerServerSide(messageCollector, null, findCallbackServerSocket())
 
     val sessionId = runBlocking {
         compileService.leaseReplSession(

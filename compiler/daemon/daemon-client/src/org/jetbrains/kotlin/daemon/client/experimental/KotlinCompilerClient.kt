@@ -144,7 +144,7 @@ object KotlinCompilerClient {
         }
     }
 
-    suspend fun shutdownCompileService(compilerId: CompilerId, daemonOptions: DaemonOptions): Unit {
+    suspend fun shutdownCompileService(compilerId: CompilerId, daemonOptions: DaemonOptions) {
         connectToCompileService(
             compilerId,
             DaemonJVMOptions(),
@@ -177,11 +177,14 @@ object KotlinCompilerClient {
         outputsCollector: ((File, List<File>) -> Unit)? = null,
         compilerMode: CompilerMode = CompilerMode.NON_INCREMENTAL_COMPILER,
         reportSeverity: ReportSeverity = ReportSeverity.INFO,
-        port: ServerSocketWrapper = findCallbackServerSocket(),
         profiler: Profiler = DummyProfiler()
     ): Int = profiler.withMeasure(this) {
         runBlocking {
-            val services = BasicCompilerServicesWithResultsFacadeServerServerSide(messageCollector, outputsCollector, port)
+            val services = BasicCompilerServicesWithResultsFacadeServerServerSide(
+                messageCollector,
+                outputsCollector,
+                findCallbackServerSocket()
+            )
             log.info("[BasicCompilerServicesWithResultsFacadeServerServerSide] services.runServer()")
             val serverRun = services.runServer()
             compilerService.compile(
