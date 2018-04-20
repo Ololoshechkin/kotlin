@@ -7,6 +7,7 @@ package org.jetbrains.kotlin.daemon.experimental.integration
 
 import junit.framework.TestCase
 import kotlinx.coroutines.experimental.Unconfined
+import kotlinx.coroutines.experimental.async
 import kotlinx.coroutines.experimental.delay
 import kotlinx.coroutines.experimental.runBlocking
 import org.jetbrains.kotlin.cli.AbstractCliTest
@@ -39,7 +40,6 @@ import java.net.URLClassLoader
 import java.nio.charset.Charset
 import java.rmi.ConnectException
 import java.rmi.ConnectIOException
-import java.rmi.NoSuchObjectException
 import java.rmi.UnmarshalException
 import java.util.*
 import java.util.concurrent.CountDownLatch
@@ -723,9 +723,6 @@ class CompilerDaemonTest : KotlinIntegrationTestBase() {
                 )
                 assertNotNull("failed to connect daemon", daemon)
                 TestCase.assertTrue("daemon is not new!", daemon !is CompileService)
-                runBlocking {
-                    println("\n_connected_ (${(daemon ?: 5)::class.java.name})\n")
-                }
 
                 val resultCodes = arrayOfNulls<Int>(PARALLEL_THREADS_TO_COMPILE)
                 val localEndSignal = CountDownLatch(PARALLEL_THREADS_TO_COMPILE)
@@ -759,13 +756,14 @@ class CompilerDaemonTest : KotlinIntegrationTestBase() {
 
                 (1..PARALLEL_THREADS_TO_COMPILE).forEach {
                     assertEquals("Compilation on thread $it failed:\n${outStreams[it - 1]}", 0, resultCodes[it - 1])
+                    println("result[$it] = ${resultCodes[it - 1]}")
                 }
             }
         }
     }
 
     private object ParallelStartParams {
-        const val threads = 32
+        const val threads = 2
         const val performCompilation = false
         const val connectionFailedErr = -100
     }
@@ -779,9 +777,10 @@ class CompilerDaemonTest : KotlinIntegrationTestBase() {
         val logFiles = arrayOfNulls<File>(ParallelStartParams.threads)
         val daemonInfos = arrayOfNulls<Pair<CompileService.CallResult<String>?, Int?>>(ParallelStartParams.threads)
 
-        val daemonOptions = makeTestDaemonOptions(getTestName(true), 100)
+        val daemonOptions = makeTestDaemonOptions(getTestName(true), 1000)
 
-        fun connectThread(threadNo: Int) = thread(name = "daemonConnect$threadNo") {
+        fun connectThread(threadNo: Int) = async {
+            // (name = "daemonConnect$threadNo")
             try {
                 withFlagFile(getTestName(true), ".alive") { flagFile ->
                     withLogFile(
@@ -831,7 +830,7 @@ class CompilerDaemonTest : KotlinIntegrationTestBase() {
 
         val succeeded = try {
             (1..ParallelStartParams.threads).forEach { connectThread(it - 1) }
-            doneLatch.await(PARALLEL_WAIT_TIMEOUT_S, TimeUnit.SECONDS)
+            doneLatch.await(20 * PARALLEL_WAIT_TIMEOUT_S, TimeUnit.SECONDS)
         } finally {
             System.clearProperty(COMPILE_DAEMON_STARTUP_TIMEOUT_PROPERTY)
             System.clearProperty(COMPILE_DAEMON_VERBOSE_REPORT_PROPERTY)

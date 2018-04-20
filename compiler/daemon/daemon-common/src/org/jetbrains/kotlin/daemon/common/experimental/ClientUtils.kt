@@ -6,6 +6,7 @@
 package org.jetbrains.kotlin.daemon.common.experimental
 
 
+import kotlinx.coroutines.experimental.Deferred
 import kotlinx.coroutines.experimental.async
 import kotlinx.coroutines.experimental.runBlocking
 import org.jetbrains.kotlin.daemon.common.*
@@ -38,7 +39,7 @@ private suspend fun <T, R : Any> List<T>.mapNotNullAsync(transform: suspend (T) 
 // TODO: consider using compiler jar signature (checksum) as a CompilerID (plus java version, plus ???) instead of classpath checksum
 //    would allow to use same compiler from taken different locations
 //    reqs: check that plugins (or anything els) should not be part of the CP
-suspend fun walkDaemonsAsync(
+fun walkDaemonsAsync(
     registryDir: File,
     compilerId: CompilerId,
     fileToCompareTimestamp: File,
@@ -46,7 +47,7 @@ suspend fun walkDaemonsAsync(
     report: (DaemonReportCategory, String) -> Unit = { _, _ -> },
     useRMI: Boolean = true,
     useSockets: Boolean = true
-): List<DaemonWithMetadataAsync> = runBlocking {
+): Deferred<List<DaemonWithMetadataAsync>> = async {
     // : Sequence<DaemonWithMetadataAsync>
     val classPathDigest = compilerId.compilerClasspath.map { File(it).absolutePath }.distinctStringsDigest().toHexString()
     val portExtractor = org.jetbrains.kotlin.daemon.common.makePortFromRunFilenameExtractor(classPathDigest)
@@ -54,17 +55,24 @@ suspend fun walkDaemonsAsync(
     registryDir.walk().toList() // list, since walk returns Sequence and Sequence.map{...} is not inline => coroutines dont work
         .map { Pair(it, portExtractor(it.name)) }
         .filter { (file, port) -> port != null && filter(file, port) }
-        .mapNotNullAsync { (file, port) ->
+        .mapNotNull { (file, port) ->
             //.mapNotNull { (file, port) ->
             // all actions process concurrently
             log.info("\n<<<<<<<<<<<<<<<<<<<<<<<>>>>>>>>>>>>>>>>>>>>>\n")
-            log.info("(port = $port, file = $file)");
+            log.info("(port = $port, file = $file)")
+            log.info("fileToCompareTimestamp = $fileToCompareTimestamp")
+            log.info("port != null : ${port != null}")
+            log.info("port in RANGE : ${(port ?: -1) in 1..(MAX_PORT_NUMBER - 1)}")
             assert(port!! in 1..(MAX_PORT_NUMBER - 1))
+            log.info("lastModified()")
+            log.info("file.lastModified() : ${file.lastModified()}")
+            log.info("fileToCompareTimestamp.lastModified() : ${fileToCompareTimestamp.lastModified()}")
             val relativeAge = fileToCompareTimestamp.lastModified() - file.lastModified()
-            report(
-                DaemonReportCategory.DEBUG,
-                "found daemon on socketPort $port ($relativeAge ms old), trying to connect"
-            )
+            log.info("after ASSERT - relativeAge : $relativeAge")
+//            report(
+//                DaemonReportCategory.DEBUG,
+//                "found daemon on socketPort $port ($relativeAge ms old), trying to connect"
+//            )
             log.info("found daemon on socketPort $port ($relativeAge ms old), trying to connect")
             val daemon = tryConnectToDaemonAsync(port, report, file, useRMI, useSockets)
             log.info("daemon = $daemon (port= $port)")

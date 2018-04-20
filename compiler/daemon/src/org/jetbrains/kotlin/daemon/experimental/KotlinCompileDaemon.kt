@@ -6,8 +6,7 @@
 package org.jetbrains.kotlin.daemon.experimental
 
 import kotlinx.coroutines.experimental.Deferred
-import kotlinx.coroutines.experimental.Unconfined
-import kotlinx.coroutines.experimental.runBlocking
+import kotlinx.coroutines.experimental.async
 import org.jetbrains.kotlin.cli.common.CLICompiler
 import org.jetbrains.kotlin.cli.common.environment.setIdeaIoUseFallback
 import org.jetbrains.kotlin.cli.js.K2JSCompiler
@@ -50,12 +49,10 @@ class LogStream(name: String) : OutputStream() {
 object KotlinCompileDaemon {
 
     init {
+
         val logTime: String = SimpleDateFormat("yyyy-MM-dd.HH-mm-ss-SSS").format(Date())
         val (logPath: String, fileIsGiven: Boolean) =
-                System.getProperty(COMPILE_DAEMON_LOG_PATH_PROPERTY)
-                    ?.trimQuotes()
-                    ?.let { Pair(it, File(it).isFile) }
-                        ?: Pair("%t", false)
+                System.getProperty(COMPILE_DAEMON_LOG_PATH_PROPERTY)?.trimQuotes()?.let { Pair(it, File(it).isFile) } ?: Pair("%t", false)
         val cfg: String =
             "handlers = java.util.logging.FileHandler\n" +
                     "java.util.logging.FileHandler.level     = ALL\n" +
@@ -102,7 +99,7 @@ object KotlinCompileDaemon {
         val compilerId = CompilerId()
         val daemonOptions = DaemonOptions()
 
-        runBlocking {
+        async {
 
             var serverRun: Deferred<Unit>? = null
 
@@ -191,7 +188,7 @@ object KotlinCompileDaemon {
 
 
                 println(COMPILE_DAEMON_IS_READY_MESSAGE)
-                log.info("daemon is listening on socketPort: $port")
+                log.info("daemon is listening on port: ${port.port}")
 
                 // this supposed to stop redirected streams reader(s) on the client side and prevent some situations with hanging threads, but doesn't work reliably
                 // TODO: implement more reliable scheme
