@@ -30,9 +30,11 @@ internal class RemoteICReporterAsync(
     private val shouldReportCompileIteration =
         CompilationResultCategory.IC_COMPILE_ITERATION.code in compilationOptions.requestedCompilationResults
 
-    override fun report(message: () -> String) = runBlocking {
-        if (shouldReportMessages && isVerbose) {
-            servicesFacade.report(ReportCategory.IC_MESSAGE, ReportSeverity.DEBUG, message())
+    override fun report(message: () -> String) {
+        async {
+            if (shouldReportMessages && isVerbose) {
+                servicesFacade.report(ReportCategory.IC_MESSAGE, ReportSeverity.DEBUG, message())
+            }
         }
     }
 

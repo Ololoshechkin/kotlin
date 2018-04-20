@@ -8,9 +8,11 @@ import kotlinx.coroutines.experimental.withTimeoutOrNull
 import org.jetbrains.kotlin.daemon.common.experimental.AUTH_TIMEOUT_IN_MILLISECONDS
 import org.jetbrains.kotlin.daemon.common.experimental.FIRST_HANDSHAKE_BYTE_TOKEN
 import org.jetbrains.kotlin.daemon.common.experimental.ServerSocketWrapper
+import org.jetbrains.kotlin.daemon.common.experimental.log
 import java.io.Serializable
 import java.util.concurrent.TimeUnit
 import java.util.logging.Logger
+import kotlin.concurrent.thread
 
 /*
  * Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license
@@ -33,7 +35,7 @@ interface Server<out T : ServerBase> : ServerBase {
         WORKING, CLOSED, ERROR, DOWNING, UNVERIFIED
     }
 
-    suspend fun processMessage(msg: AnyMessage<in T>, output: ByteWriteChannelWrapper): State = when (msg) {
+    fun processMessage(msg: AnyMessage<in T>, output: ByteWriteChannelWrapper): State = when (msg) {
         is Server.Message<in T> -> Server.State.WORKING.also { msg.process(this as T, output) }
         is Server.EndConnectionMessage<in T> -> {
             log.info("!EndConnectionMessage!")
@@ -45,14 +47,14 @@ interface Server<out T : ServerBase> : ServerBase {
 
     suspend fun attachClient(client: Socket): Deferred<State> = async {
         val (input, output) = client.openIO(log)
-        if (!serverHandshake(input, output, log)) {
-            log.info("failed to establish connection with client (handshake failed)")
-            return@async Server.State.UNVERIFIED
-        }
-        if (!securityCheck(input)) {
-            log.info("failed to check securitay")
-            return@async Server.State.UNVERIFIED
-        }
+//        if (!serverHandshake(input, output, log)) {
+//            log.info("failed to establish connection with client (handshake failed)")
+//            return@async Server.State.UNVERIFIED
+//        }
+//        if (!securityCheck(input)) {
+//            log.info("failed to check securitay")
+//            return@async Server.State.UNVERIFIED
+//        }
         log.info("   client verified ($client)")
         clients[client] = ClientInfo(client, input, output)
         log.info("   ($client)client in clients($clients)")
@@ -87,16 +89,22 @@ interface Server<out T : ServerBase> : ServerBase {
     abstract class AnyMessage<ServerType : ServerBase> : Serializable {
         var messageId: Int? = null
         fun withId(id: Int): AnyMessage<ServerType> {
-            messageId = id;
+            messageId = id
             return this
         }
     }
 
     abstract class Message<ServerType : ServerBase> : AnyMessage<ServerType>() {
-        suspend fun process(server: ServerType, output: ByteWriteChannelWrapper) {
+        fun process(server: ServerType, output: ByteWriteChannelWrapper) {
             async {
+                log.info("$server starts processing ${this@Message}")
                 processImpl(server, {
-                    async { output.writeObject(DefaultAuthorizableClient.MessageReply(messageId ?: -1, it)) }
+                    log.info("$server finished processing ${this@Message}, sending output")
+                    async {
+                        log.info("$server starts sending ${this@Message} to output")
+                        output.writeObject(DefaultAuthorizableClient.MessageReply(messageId ?: -1, it))
+                        log.info("$server finished sending ${this@Message} to output")
+                    }
                 })
             }
         }

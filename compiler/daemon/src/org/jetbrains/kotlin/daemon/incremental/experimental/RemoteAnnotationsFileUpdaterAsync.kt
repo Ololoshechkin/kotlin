@@ -6,6 +6,7 @@
 package org.jetbrains.kotlin.daemon.incremental.experimental
 
 import kotlinx.coroutines.experimental.Unconfined
+import kotlinx.coroutines.experimental.async
 import kotlinx.coroutines.experimental.runBlocking
 import org.jetbrains.kotlin.annotation.AnnotationFileUpdater
 import org.jetbrains.kotlin.cli.common.ExitCode
@@ -18,11 +19,15 @@ import java.io.File
 
 internal class RemoteAnnotationsFileUpdaterAsync(private val servicesFacade: IncrementalCompilerServicesFacadeAsync) : AnnotationFileUpdater {
 
-    override fun updateAnnotations(outdatedClasses: Iterable<JvmClassName>) = runBlocking {
-        servicesFacade.updateAnnotations(outdatedClasses.map { it.internalName })
+    override fun updateAnnotations(outdatedClasses: Iterable<JvmClassName>) {
+        async {
+            servicesFacade.updateAnnotations(outdatedClasses.map { it.internalName })
+        }
     }
 
-    override fun revert() = runBlocking {
-        servicesFacade.revert()
+    override fun revert() {
+        async {
+            servicesFacade.revert()
+        }
     }
 }

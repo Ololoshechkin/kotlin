@@ -10,6 +10,8 @@ import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.impl.ZipHandler
 import com.intellij.openapi.vfs.impl.jar.CoreJarFileSystem
 import io.ktor.network.sockets.Socket
+import kotlinx.coroutines.experimental.Unconfined
+import kotlinx.coroutines.experimental.async
 import kotlinx.coroutines.experimental.runBlocking
 import org.jetbrains.kotlin.build.JvmSourceRoot
 import org.jetbrains.kotlin.cli.common.CLICompiler
@@ -39,12 +41,12 @@ import org.jetbrains.kotlin.daemon.incremental.experimental.RemoteChangesRegistr
 import org.jetbrains.kotlin.daemon.report.experimental.CompileServicesFacadeMessageCollector
 import org.jetbrains.kotlin.daemon.report.experimental.DaemonMessageReporterAsync
 import org.jetbrains.kotlin.daemon.report.experimental.RemoteICReporterAsync
-import org.jetbrains.kotlin.diagnostics.Severity
 import org.jetbrains.kotlin.incremental.*
 import org.jetbrains.kotlin.incremental.components.LookupTracker
 import org.jetbrains.kotlin.load.kotlin.incremental.components.IncrementalCompilationComponents
 import org.jetbrains.kotlin.modules.Module
 import org.jetbrains.kotlin.progress.CompilationCanceledStatus
+import java.awt.SystemColor.info
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.PrintStream
@@ -60,6 +62,7 @@ import java.util.logging.Logger
 import kotlin.concurrent.read
 import kotlin.concurrent.schedule
 import kotlin.concurrent.write
+import kotlin.coroutines.experimental.coroutineContext
 
 fun nowSeconds() = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime())
 
@@ -129,25 +132,8 @@ class CompileServiceServerSideImpl(
     private val log by lazy { Logger.getLogger("compiler") }
 
     init {
-
-        log.info("init(port= $serverSocketWithPort)")
-
-        // assuming logically synchronized
+        log.info("Running OLD server (port = $port)")
         System.setProperty(KOTLIN_COMPILER_ENVIRONMENT_KEEPALIVE_PROPERTY, "true")
-
-        // TODO UNCOMMENT THIS : this.toRMIServer(daemonOptions, compilerId) // also create RMI server in order to support old clients
-//        this.toRMIServer(daemonOptions, compilerId)
-
-        timer.schedule(10) {
-            exceptionLoggingTimerThread { initiateElections() }
-        }
-        timer.schedule(delay = DAEMON_PERIODIC_CHECK_INTERVAL_MS, period = DAEMON_PERIODIC_CHECK_INTERVAL_MS) {
-            exceptionLoggingTimerThread { periodicAndAfterSessionCheck() }
-        }
-        timer.schedule(delay = DAEMON_PERIODIC_SELDOM_CHECK_INTERVAL_MS + 100, period = DAEMON_PERIODIC_SELDOM_CHECK_INTERVAL_MS) {
-            exceptionLoggingTimerThread { periodicSeldomCheck() }
-        }
-
     }
 
     // wrapped in a class to encapsulate alive check logic
@@ -307,7 +293,6 @@ class CompileServiceServerSideImpl(
             sendTokenKeyPair(it, securityData.token, securityData.privateKey)
         }
         runFile.deleteOnExit()
-        log.info("last_init_end")
     }
 
     // RMI-exposed API
@@ -340,7 +325,7 @@ class CompileServiceServerSideImpl(
 
     // TODO: consider tying a session to a client and use this info to cleanup
     override suspend fun leaseCompileSession(aliveFlagPath: String?): CompileService.CallResult<Int> =
-        ifAlive(minAliveness = Aliveness.Alive, info = "registerClient") {
+        ifAlive(minAliveness = Aliveness.Alive, info = "leaseCompileSession") {
             CompileService.CallResult.Good(
                 state.sessions.leaseSession(ClientOrSessionProxy<Any>(aliveFlagPath)).apply {
                     log.info("leased a new session $this, session alive file: $aliveFlagPath")
@@ -665,13 +650,42 @@ class CompileServiceServerSideImpl(
     //        )
     //    }
 
-    private inline fun exceptionLoggingTimerThread(body: () -> Unit) {
+    init {
+
+        log.info("init(port= $serverSocketWithPort)")
+
+        // assuming logically synchronized
+        System.setProperty(KOTLIN_COMPILER_ENVIRONMENT_KEEPALIVE_PROPERTY, "true")
+
+        // TODO UNCOMMENT THIS : this.toRMIServer(daemonOptions, compilerId) // also create RMI server in order to support old clients
+//        this.toRMIServer(daemonOptions, compilerId)
+
+        timer.schedule(10) {
+            exceptionLoggingTimerThread(info = "initiateElections") {
+                println("-initiateElections-")
+                initiateElections()
+            }
+        }
+        timer.schedule(delay = DAEMON_PERIODIC_CHECK_INTERVAL_MS, period = DAEMON_PERIODIC_CHECK_INTERVAL_MS) {
+            exceptionLoggingTimerThread(info = "periodicAndAfterSessionCheck") { periodicAndAfterSessionCheck() }
+        }
+        timer.schedule(delay = DAEMON_PERIODIC_SELDOM_CHECK_INTERVAL_MS + 100, period = DAEMON_PERIODIC_SELDOM_CHECK_INTERVAL_MS) {
+            exceptionLoggingTimerThread(info = "periodicSeldomCheck") { periodicSeldomCheck() }
+        }
+
+        log.info("last_init_end")
+
+    }
+
+    private inline fun exceptionLoggingTimerThread(info: String = "no info", body: () -> Unit) {
         try {
+            println("exceptionLoggingTimerThread body($info) : starting...")
             body()
+            println("exceptionLoggingTimerThread body($info) : finishec(OK)")
         } catch (e: Throwable) {
-            System.err.println("Exception in timer thread: " + e.message)
+            System.err.println("[$info] Exception in timer thread: " + e.message)
             e.printStackTrace(System.err)
-            log.log(Level.SEVERE, "Exception in timer thread", e)
+            log.log(Level.SEVERE, "[$info] Exception in timer thread", e)
         }
     }
 
@@ -714,7 +728,7 @@ class CompileServiceServerSideImpl(
                     gracefulShutdown(false)
                 }
                 anyDead -> {
-                    runBlocking {
+                    async {
                         clearJarCache()
                     }
                 }
@@ -738,7 +752,8 @@ class CompileServiceServerSideImpl(
     private fun initiateElections() {
         ifAliveUnit(info = "initiateElections") {
             log.info("initiate elections")
-            runBlocking {
+            async {
+                log.info("initiate elections - runBlocking")
                 val aliveWithOpts = walkDaemonsAsync(
                     File(daemonOptions.runFilesPathOrDefault),
                     compilerId,
@@ -746,7 +761,8 @@ class CompileServiceServerSideImpl(
                     filter = { _, p -> p != port },
                     report = { _, msg -> log.info(msg) },
                     useRMI = false
-                )
+                ).await()
+                log.info("aliveWithOpts : ${aliveWithOpts.map { it.daemon.javaClass.name }}")
                 val comparator = compareByDescending<DaemonWithMetadataAsync, DaemonJVMOptions>(
                     DaemonJVMOptionsMemoryComparator(),
                     { it.jvmOptions }
@@ -770,6 +786,7 @@ class CompileServiceServerSideImpl(
                         log.info("${LOG_PREFIX_ASSUMING_OTHER_DAEMONS_HAVE} lower prio, taking clients from them and schedule them to shutdown: my runfile: ${runFile.name} (${runFile.lastModified()}) vs best other runfile: ${bestDaemonWithMetadata.runFile.name} (${bestDaemonWithMetadata.runFile.lastModified()})")
                         aliveWithOpts.forEach { (daemon, runFile, _) ->
                             try {
+                                log.info("other : $daemon")
                                 daemon.getClients().takeIf { it.isGood }?.let {
                                     it.get().forEach { clientAliveFile ->
                                         registerClient(clientAliveFile)
@@ -997,13 +1014,16 @@ class CompileServiceServerSideImpl(
         ifAliveChecksImpl(minAliveness, info, body)
     }
 
-    private inline fun ifAliveUnit(minAliveness: Aliveness = Aliveness.LastSession, info: String = "no info", body: () -> Unit): Unit =
+    private inline fun ifAliveUnit(minAliveness: Aliveness = Aliveness.LastSession, info: String = "no info", body: () -> Unit) {
+        log.info("ifAliveUnit(1)($info)")
         rwlock.read {
+            log.info("ifAliveUnit(2)($info)")
             ifAliveChecksImpl(minAliveness, info) {
                 body()
                 CompileService.CallResult.Ok()
             }
         }
+    }
 
     private inline fun <R> ifAliveExclusive(
         minAliveness: Aliveness = Aliveness.LastSession,
@@ -1030,7 +1050,7 @@ class CompileServiceServerSideImpl(
         body: () -> CompileService.CallResult<R>
     ): CompileService.CallResult<R> {
         val curState = state.alive.get()
-        log.info("alive check? - state = $curState ; minAliveness.ordinal = ${minAliveness.ordinal}")
+        log.info("[$info] alive check? - state = $curState ; minAliveness.ordinal = ${minAliveness.ordinal}")
         return when {
             curState < minAliveness.ordinal -> {
                 log.info("Cannot perform operation, requested state: ${minAliveness.name} > actual: ${curState.toAlivenessName()}")
@@ -1043,7 +1063,7 @@ class CompileServiceServerSideImpl(
                         log.info("} body() : $info")
                     }
                 } catch (e: Throwable) {
-                    log.log(Level.SEVERE, "Exception", e)
+                    log.log(Level.SEVERE, "[$info] Exception", e)
                     CompileService.CallResult.Error(e.message ?: "unknown")
                 }
             }

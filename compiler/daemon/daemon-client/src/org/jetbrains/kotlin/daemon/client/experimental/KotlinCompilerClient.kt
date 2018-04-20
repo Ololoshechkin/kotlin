@@ -6,19 +6,14 @@
 package org.jetbrains.kotlin.daemon.client.experimental
 
 import io.ktor.network.sockets.Socket
-import kotlinx.coroutines.experimental.Unconfined
 import kotlinx.coroutines.experimental.async
 import kotlinx.coroutines.experimental.runBlocking
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
 import org.jetbrains.kotlin.cli.common.messages.MessageCollector
 import org.jetbrains.kotlin.daemon.client.DaemonReportMessage
-import org.jetbrains.kotlin.daemon.client.KotlinCompilerClient.detectCompilerClasspath
 import org.jetbrains.kotlin.daemon.common.*
 import org.jetbrains.kotlin.daemon.common.experimental.*
 import org.jetbrains.kotlin.daemon.common.experimental.socketInfrastructure.Server
-import org.jetbrains.kotlin.incremental.components.LookupTracker
-import org.jetbrains.kotlin.load.kotlin.incremental.components.IncrementalCompilationComponents
-import org.jetbrains.kotlin.progress.CompilationCanceledStatus
 import java.io.File
 import java.io.PrintStream
 import java.io.Serializable
@@ -30,12 +25,6 @@ import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeUnit
 import java.util.logging.Logger
 import kotlin.concurrent.thread
-
-class CompilationServices(
-    val incrementalCompilationComponents: IncrementalCompilationComponents? = null,
-    val lookupTracker: LookupTracker? = null,
-    val compilationCanceledStatus: CompilationCanceledStatus? = null
-)
 
 data class CompileServiceSession(val compileService: CompileServiceClientSide, val sessionId: Int)
 
@@ -107,7 +96,7 @@ object KotlinCompilerClient {
 
         log.info("connectAndLease")
 
-        fun CompileServiceClientSide.leaseImpl(): CompileServiceSession? = runBlocking(Unconfined) {
+        fun CompileServiceClientSide.leaseImpl(): CompileServiceSession? = runBlocking {
             // the newJVMOptions could be checked here for additional parameters, if needed
             registerClient(clientAliveFlagFile.absolutePath)
             reportingTargets.report(DaemonReportCategory.DEBUG, "connected to the daemon")
@@ -124,7 +113,7 @@ object KotlinCompilerClient {
         println("++cur: ${Thread.currentThread().name}")
 
         ensureServerHostnameIsSetUp()
-        runBlocking(Unconfined) {
+        runBlocking {
             println("cur: ${Thread.currentThread().name}")
             val (service, newJVMOptions) =
                     tryFindSuitableDaemonOrNewOpts(
@@ -430,7 +419,7 @@ object KotlinCompilerClient {
         val timestampMarker = createTempFile("kotlin-daemon-client-tsmarker", directory = registryDir)
         val aliveWithMetadata = try {
             println("walkDaemonsAsync...")
-            walkDaemonsAsync(registryDir, compilerId, timestampMarker, report = report).also {
+            walkDaemonsAsync(registryDir, compilerId, timestampMarker, report = report).await().also {
                 log.info(
                     "daemons (${it.size}): ${it.map { "daemon(params : " + it.jvmOptions.jvmParams.joinToString(", ") + ")" }.joinToString(
                         ", ", "[", "]"

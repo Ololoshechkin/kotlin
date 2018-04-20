@@ -8,7 +8,6 @@ import kotlinx.coroutines.experimental.channels.actor
 import kotlinx.coroutines.experimental.channels.consumeEach
 import kotlinx.coroutines.experimental.runBlocking
 import org.jetbrains.kotlin.daemon.common.experimental.LoopbackNetworkInterface
-import sun.net.ConnectionResetException
 import java.beans.Transient
 import java.io.IOException
 import java.io.ObjectInputStream
@@ -49,106 +48,159 @@ abstract class DefaultAuthorizableClient<ServerType : ServerBase>(
     abstract suspend fun clientHandshake(input: ByteReadChannelWrapper, output: ByteWriteChannelWrapper, log: Logger): Boolean
 
     override fun close() {
-//        try {
-//            runBlockingWithTimeout {
-//                sendNoReplyMessage(Server.EndConnectionMessage())
-//            }
-//        } catch (e: Throwable) {
-//            log.info(e.message)
-//        } finally {
-//            socket?.close()
-//        }
-        socket?.close()
+        try {
+            runBlockingWithTimeout {
+                sendMessage(Server.EndConnectionMessage())
+            }
+        } catch (e: Throwable) {
+            log.info(e.message)
+        } finally {
+            socket?.close()
+        }
+//        socket?.close()
     }
 
     public class MessageReply<T : Any>(val messageId: Int, val reply: T?) : Serializable
 
-    private interface ActorQuery
-    private data class ExpectReplyQuery(val messageId: Int, val result: CompletableDeferred<MessageReply<*>>) : ActorQuery
-    private class ReceiveReplyQuery : ActorQuery
-    private data class SendMessageQuery(val message: Server.AnyMessage<*>, val messageId: CompletableDeferred<Int>) : ActorQuery
-    private data class SendNoreplyMessageQuery(val message: Server.AnyMessage<*>) : ActorQuery
+    private interface ReadActorQuery
+    private data class ExpectReplyQuery(val messageId: Int, val result: CompletableDeferred<MessageReply<*>>) : ReadActorQuery
+    private class ReceiveReplyQuery : ReadActorQuery
+
+    private interface WriteActorQuery
+    private data class SendNoreplyMessageQuery(val message: Server.AnyMessage<*>) : WriteActorQuery
+    private data class SendMessageQuery(val message: Server.AnyMessage<*>, val messageId: CompletableDeferred<Any>) : WriteActorQuery
 
 //    @kotlin.jvm.Transient
 //    private lateinit var intermediateActor: SendChannel<ReceiveReplyQuery>
 
     @kotlin.jvm.Transient
-    private lateinit var actor: SendChannel<ActorQuery>
+    private lateinit var readActor: SendChannel<ReadActorQuery>
+
+    @kotlin.jvm.Transient
+    private lateinit var writeActor: SendChannel<WriteActorQuery>
 
     override fun sendMessage(msg: Server.AnyMessage<out ServerType>) = runBlocking {
         log.info("send message : $msg")
-        val id = CompletableDeferred<Int>()
-        actor.send(SendMessageQuery(msg, id))
+        val id = CompletableDeferred<Any>()
+        writeActor.send(SendMessageQuery(msg, id))
         val idVal = id.await()
+        if (idVal is IOException) {
+            log.info("write exception : ${idVal.message}")
+            throw idVal
+        }
         log.info("idVal = $idVal")
-        idVal
+        idVal as Int
     }
 
     override fun sendNoReplyMessage(msg: Server.AnyMessage<out ServerType>) = runBlocking {
         log.info("sendNoReplyMessage $msg")
-        log.info("actor: $actor")
-        log.info("closed 4 send : ${actor.isClosedForSend}")
-        actor.send(SendNoreplyMessageQuery(msg))
+        log.info("readActor: $readActor")
+        log.info("closed 4 send : ${readActor.isClosedForSend}")
+        writeActor.send(SendNoreplyMessageQuery(msg))
     }
 
     override fun <T> readMessage(id: Int): T = runBlocking {
         val result = CompletableDeferred<MessageReply<*>>()
-        actor.send(ExpectReplyQuery(id, result))
-        result.await().reply as T
+        readActor.send(ExpectReplyQuery(id, result))
+        val actualResult = result.await().reply
+        if (actualResult is IOException) {
+            throw actualResult
+        }
+        actualResult as T
     }
 
     override fun connectToServer() {
-//        intermediateActor = actor(capacity = Channel.UNLIMITED) {
-//            consumeEach { query ->
-//                log.info("[${log.name}] : intermediateActor received $query")
-//                actor.send(query)
-//                log.info("[${log.name}] : query sent to actor!")
-//            }
-//        }
-        actor = actor(capacity = 2) {
-            val receivedMessages = hashMapOf<Int, MessageReply<*>>()
-            val expectedMessages = hashMapOf<Int, ExpectReplyQuery>()
-            var firstFreeMessageId = 0
-            fun receiveReply() {
-                log.info("[${log.name}] : got ReceiveReplyQuery")
-                val replyAny = runBlocking { input.nextObject() } // TODO : support exception!!!
-                if (replyAny !is MessageReply<*>) {
-                    log.info("replyAny as MessageReply<*> - failed!")
-                } else {
-                    val reply = replyAny
-                    log.info("[${log.name}] : received reply ${replyAny.reply} (id = ${replyAny.messageId})}")
-                    expectedMessages[reply.messageId]?.also { expectedMsg ->
-                        expectedMsg.result.complete(reply)
-                    } ?: receivedMessages.put(reply.messageId, reply).also {
-                        log.info("[${log.name}] : intermediateActor.send(ReceiveReplyQuery())")
-                        receiveReply()
-                    }
-                }
+        val intermediateActor = actor<ReceiveReplyQuery>(capacity = Integer.MAX_VALUE) {
+            consumeEach { query ->
+                log.info("[${log.name}] : intermediateActor received $query")
+                readActor.send(query)
+                log.info("[${log.name}] : query sent to readActor!")
             }
-            for (query in channel) {
+        }
+        writeActor = actor(capacity = Channel.UNLIMITED) {
+            var firstFreeMessageId = 0
+            consumeEach { query ->
                 when (query) {
                     is SendMessageQuery -> {
                         val id = firstFreeMessageId++
                         log.info("[${log.name}, ${this@DefaultAuthorizableClient}] : sending message : ${query.message} (predicted id = ${id})")
-                        query.messageId.complete(id)
-                        output.writeObject(query.message.withId(id)) // TODO : support exception!!!
+                        try {
+                            output.writeObject(query.message.withId(id))
+                            query.messageId.complete(id)
+                        } catch (e: IOException) {
+                            query.messageId.complete(e)
+                        }
                     }
                     is SendNoreplyMessageQuery -> {
                         log.info("[${log.name}] : sending noreply : ${query.message}")
                         output.writeObject(query.message.withId(-1))
                     }
+                }
+            }
+        }
+        readActor = actor(capacity = Channel.UNLIMITED) {
+            val receivedMessages = hashMapOf<Int, MessageReply<*>>()
+            val expectedMessages = hashMapOf<Int, ExpectReplyQuery>()
+            fun broadcastIOException(e: IOException) {
+                channel.close()
+                expectedMessages.forEach { id, deferred ->
+                    deferred.result.complete(MessageReply(id, e))
+                }
+            }
+
+//            fun receiveReply() {
+//                log.info("[${log.name}] : got ReceiveReplyQuery")
+//                val replyAny = try {
+//                    input.nextObject()
+//                } catch (e: IOException) {
+//                    broadcastIOException(e)
+//                    return
+//                }
+//                if (replyAny !is MessageReply<*>) {
+//                    log.info("replyAny as MessageReply<*> - failed!")
+//                } else {
+//                    val reply = replyAny
+//                    log.info("[${log.name}] : received reply ${replyAny.reply} (id = ${replyAny.messageId})}")
+//                    expectedMessages[reply.messageId]?.also { expectedMsg ->
+//                        expectedMsg.result.complete(reply)
+//                    } ?: receivedMessages.put(reply.messageId, reply).also {
+//                        log.info("[${log.name}] : intermediateActor.send(ReceiveReplyQuery())")
+//                        async { intermediateActor.send(ReceiveReplyQuery()) }
+//                    }
+//                }
+//            }
+
+            consumeEach { query ->
+                when (query) {
                     is ExpectReplyQuery -> {
                         log.info("[${log.name}] : expect message with id = ${query.messageId}")
                         receivedMessages[query.messageId]?.also { reply ->
                             query.result.complete(reply)
                         } ?: expectedMessages.put(query.messageId, query).also {
                             log.info("[${log.name}] : intermediateActor.send(ReceiveReplyQuery())")
-                            receiveReply()
-                            //intermediateActor.send(ReceiveReplyQuery())
+                            channel.send(ReceiveReplyQuery())
                         }
                     }
                     is ReceiveReplyQuery -> {
-                        receiveReply()
+                        log.info("[${log.name}] : got ReceiveReplyQuery")
+                        try {
+                            val replyAny = input.nextObject()
+                            if (replyAny !is MessageReply<*>) {
+                                log.info("replyAny as MessageReply<*> - failed!")
+                            } else {
+                                val reply = replyAny
+                                log.info("[${log.name}] : received reply ${replyAny.reply} (id = ${replyAny.messageId})}")
+                                expectedMessages[reply.messageId]?.also { expectedMsg ->
+                                    expectedMsg.result.complete(reply)
+                                } ?: receivedMessages.put(reply.messageId, reply).also {
+                                    log.info("[${log.name}] : intermediateActor.send(ReceiveReplyQuery())")
+//                                    intermediateActor.send(ReceiveReplyQuery())
+                                    channel.send(ReceiveReplyQuery())
+                                }
+                            }
+                        } catch (e: IOException) {
+                            broadcastIOException(e)
+                        }
                     }
                 }
             }
@@ -156,7 +208,6 @@ abstract class DefaultAuthorizableClient<ServerType : ServerBase>(
 //
 //            }
         }
-
         runBlocking {
             log.info("connectToServer (port = $serverPort | host = $serverHost)")
             try {
@@ -174,16 +225,16 @@ abstract class DefaultAuthorizableClient<ServerType : ServerBase>(
                 log.info("OK serv.openIO() |port=$serverPort|")
                 input = it.input
                 output = it.output
-                if (!clientHandshake(input, output, log)) {
-                    log.info("failed handshake($serverPort)")
-                    close()
-                    throw ConnectionResetException("failed to establish connection with server (handshake failed)")
-                }
-                if (!authorizeOnServer(output)) {
-                    log.info("failed authorization($serverPort)")
-                    close()
-                    throw ConnectionResetException("failed to establish connection with server (authorization failed)")
-                }
+//                if (!clientHandshake(input, output, log)) {
+//                    log.info("failed handshake($serverPort)")
+//                    close()
+//                    throw ConnectionResetException("failed to establish connection with server (handshake failed)")
+//                }
+//                if (!authorizeOnServer(output)) {
+//                    log.info("failed authorization($serverPort)")
+//                    close()
+//                    throw ConnectionResetException("failed to establish connection with server (authorization failed)")
+//                }
             }
         }
     }
