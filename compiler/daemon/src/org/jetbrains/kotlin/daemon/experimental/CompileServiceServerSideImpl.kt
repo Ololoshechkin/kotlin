@@ -686,7 +686,7 @@ class CompileServiceServerSideImpl(
     }
 
     private fun periodicAndAfterSessionCheck() {
-        return
+
         if (state.delayedShutdownQueued.get()) return
 
         val anyDead = state.sessions.cleanDead() || state.cleanDeadClients()
@@ -746,7 +746,6 @@ class CompileServiceServerSideImpl(
 
     // TODO: handover should include mechanism for client to switch to a new daemon then previous "handed over responsibilities" and shot down
     private fun initiateElections() {
-        return
         ifAliveUnit(info = "initiateElections") {
             log.info("initiate elections")
             runBlocking {
@@ -1011,14 +1010,14 @@ class CompileServiceServerSideImpl(
         minAliveness: Aliveness = Aliveness.LastSession,
         info: String = "no info",
         body: () -> CompileService.CallResult<R>
-    ): CompileService.CallResult<R> = rwlock.read {
+    ): CompileService.CallResult<R> = run {
         log.info("alive?")
         ifAliveChecksImpl(minAliveness, info, body)
     }
 
     private inline fun ifAliveUnit(minAliveness: Aliveness = Aliveness.LastSession, info: String = "no info", body: () -> Unit) {
         log.info("ifAliveUnit(1)($info)")
-        rwlock.read {
+        run {
             log.info("ifAliveUnit(2)($info)")
             ifAliveChecksImpl(minAliveness, info) {
                 body()
@@ -1031,7 +1030,7 @@ class CompileServiceServerSideImpl(
         minAliveness: Aliveness = Aliveness.LastSession,
         info: String = "no info",
         body: () -> CompileService.CallResult<R>
-    ): CompileService.CallResult<R> = rwlock.write {
+    ): CompileService.CallResult<R> = run {
         ifAliveChecksImpl(minAliveness, info, body)
     }
 
@@ -1039,7 +1038,7 @@ class CompileServiceServerSideImpl(
         minAliveness: Aliveness = Aliveness.LastSession,
         info: String = "no info",
         body: () -> Unit
-    ): Unit = rwlock.write {
+    ): Unit = run {
         ifAliveChecksImpl(minAliveness) {
             body()
             CompileService.CallResult.Ok()

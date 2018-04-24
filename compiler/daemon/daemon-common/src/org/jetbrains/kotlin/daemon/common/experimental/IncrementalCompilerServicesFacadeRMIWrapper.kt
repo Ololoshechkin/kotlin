@@ -43,9 +43,11 @@ class IncrementalCompilerServicesFacadeRMIWrapper(val clientSide: IncrementalCom
         clientSide.report(category, severity, message, attachment)
     }
 
-//    init {
-//        clientSide.connectToServer()
-//    }
+    init {
+//        runBlocking {
+//            clientSide.connectToServer()
+//        }
+    }
 }
 
 fun IncrementalCompilerServicesFacadeClientSide.toRMI() =

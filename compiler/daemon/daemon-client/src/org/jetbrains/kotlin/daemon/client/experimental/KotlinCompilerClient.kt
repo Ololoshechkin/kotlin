@@ -124,7 +124,7 @@ object KotlinCompilerClient {
                         { cat, msg -> async { reportingTargets.report(cat, msg) } }).await()
             if (service != null) {
                 log.info("service != null => service.connectToServer()")
-//            service.connectToServer()
+//                service.connectToServer()
                 service.leaseImpl().await()
             } else {
                 log.info("service == null <==> no suitable daemons found")
