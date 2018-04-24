@@ -278,7 +278,7 @@ class CompileServiceClientSideImpl(
                     compilationOptions,
                     servicesFacade,
                     compilationResults
-                )
+                ).await()
             )
     }
 
@@ -345,7 +345,7 @@ class CompileServiceClientSideImpl(
         val codeLine: ReplCodeLine
     ) : Server.Message<CompileServiceServerSide>() {
         override suspend fun processImpl(server: CompileServiceServerSide, sendReply: (Any?) -> Unit) =
-            sendReply(server.replCheck(sessionId, replStateId, codeLine))
+            sendReply(server.replCheck(sessionId, replStateId, codeLine).await())
     }
 
     class ReplCompileMessage(

@@ -6,9 +6,12 @@ import kotlinx.coroutines.experimental.channels.Channel
 import kotlinx.coroutines.experimental.channels.SendChannel
 import kotlinx.coroutines.experimental.channels.actor
 import kotlinx.coroutines.experimental.channels.consumeEach
+import kotlinx.coroutines.experimental.runBlocking
 import org.jetbrains.kotlin.daemon.common.experimental.LoopbackNetworkInterface
 import java.beans.Transient
 import java.io.IOException
+import java.io.ObjectInputStream
+import java.io.ObjectOutputStream
 import java.io.Serializable
 import java.util.logging.Logger
 
@@ -211,6 +214,17 @@ abstract class DefaultAuthorizableClient<ServerType : ServerBase>(
 //                }
         }
 
+    }
+
+    @Throws(ClassNotFoundException::class, IOException::class)
+    private fun readObject(aInputStream: ObjectInputStream) {
+        aInputStream.defaultReadObject()
+        runBlocking { connectToServer() }
+    }
+
+    @Throws(IOException::class)
+    private fun writeObject(aOutputStream: ObjectOutputStream) {
+        aOutputStream.defaultWriteObject()
     }
 
 }

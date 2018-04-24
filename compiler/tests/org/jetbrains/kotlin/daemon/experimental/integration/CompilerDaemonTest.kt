@@ -782,7 +782,7 @@ class CompilerDaemonTest : KotlinIntegrationTestBase() {
     }
 
     private object ParallelStartParams {
-        const val threads = 2
+        const val threads = 10
         const val performCompilation = false
         const val connectionFailedErr = -100
     }
@@ -853,7 +853,7 @@ class CompilerDaemonTest : KotlinIntegrationTestBase() {
                 System.clearProperty(COMPILE_DAEMON_VERBOSE_REPORT_PROPERTY)
             }
 
-            delay(100) // Wait for processes to finish and close log files
+            delay(1000) // Wait for processes to finish and close log files
 
             val electionLogs = arrayOfNulls<String>(ParallelStartParams.threads)
             val port2logs = arrayOfNulls<Pair<Int?, File?>>(ParallelStartParams.threads)
