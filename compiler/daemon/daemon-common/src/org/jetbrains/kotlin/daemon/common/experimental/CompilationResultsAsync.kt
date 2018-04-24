@@ -36,9 +36,9 @@ class CompilationResultsClientSideImpl(val socketPort: Int) : CompilationResults
         sendMessage(CompilationResultsServerSide.AddMessage(compilationResultCategory, value))
     }
 
-    init {
-        connectToServer()
-    }
+//    init {
+//        connectToServer()
+//    }
 
 }
 
@@ -57,9 +57,9 @@ class CompilationResultsRMIWrapper(val clientSide: CompilationResultsClientSide)
         clientSide.add(compilationResultCategory, value)
     }
 
-    init {
-        clientSide.connectToServer()
-    }
+//    init {
+//        clientSide.connectToServer()
+//    }
 
 }
 

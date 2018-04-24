@@ -7,6 +7,7 @@ package org.jetbrains.kotlin.daemon.experimental
 
 import kotlinx.coroutines.experimental.Deferred
 import kotlinx.coroutines.experimental.async
+import kotlinx.coroutines.experimental.runBlocking
 import org.jetbrains.kotlin.cli.common.CLICompiler
 import org.jetbrains.kotlin.cli.common.environment.setIdeaIoUseFallback
 import org.jetbrains.kotlin.cli.js.K2JSCompiler
@@ -97,19 +98,28 @@ object KotlinCompileDaemon {
         setIdeaIoUseFallback()
 
         val compilerId = CompilerId()
+
+        log.info("compilerId: " + compilerId)
+
         val daemonOptions = DaemonOptions()
 
-        async {
+        log.info("daemonOptions: " + daemonOptions)
+
+        runBlocking {
 
             var serverRun: Deferred<Unit>? = null
 
             try {
+
+                log.info("in try")
 
                 val daemonJVMOptions = configureDaemonJVMOptions(
                     inheritMemoryLimits = true,
                     inheritOtherJvmOptions = true,
                     inheritAdditionalProperties = true
                 )
+
+                log.info("daemonJVMOptions: " + daemonJVMOptions)
 
                 val filteredArgs = args.asIterable()
                     .filterExtractProps(
@@ -118,7 +128,7 @@ object KotlinCompileDaemon {
                         prefix = COMPILE_DAEMON_CMDLINE_OPTIONS_PREFIX
                     )
 
-                log.info("filteredArgs")
+                log.info("filteredArgs: " + filteredArgs)
 
                 if (filteredArgs.any()) {
                     val helpLine = "usage: <daemon> <compilerId options> <daemon options>"
@@ -129,7 +139,6 @@ object KotlinCompileDaemon {
                 }
 
                 log.info("starting_daemon")
-                log.info("starting daemon")
 
                 // TODO: find minimal set of permissions and restore security management
                 // note: may be not needed anymore since (hopefully) server is now loopback-only
