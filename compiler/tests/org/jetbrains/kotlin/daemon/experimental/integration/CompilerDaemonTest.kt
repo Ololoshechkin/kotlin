@@ -137,7 +137,7 @@ class CompilerDaemonTest : KotlinIntegrationTestBase() {
 
     private fun run(logName: String, vararg args: String): Int = runJava(getTestBaseDir(), logName, *args)
 
-    fun makeTestDaemonOptions(testName: String, shutdownDelay: Int = 5000) =
+    fun makeTestDaemonOptions(testName: String, shutdownDelay: Int = 5) =
         DaemonOptions(
             runFilesPath = File(tmpdir, testName).absolutePath,
             shutdownDelayMilliseconds = shutdownDelay.toLong(),
@@ -689,7 +689,7 @@ class CompilerDaemonTest : KotlinIntegrationTestBase() {
     }
 
     private val PARALLEL_THREADS_TO_COMPILE = 10
-    private val PARALLEL_WAIT_TIMEOUT_S = 2000L
+    private val PARALLEL_WAIT_TIMEOUT_S = 60L
 
     private suspend fun runCompile(
         daemon: CompileServiceClientSide,
@@ -848,7 +848,7 @@ class CompilerDaemonTest : KotlinIntegrationTestBase() {
 
             val succeeded = try {
                 (1..ParallelStartParams.threads).forEach { connectThread(it - 1) }
-                doneLatch.await(20 * PARALLEL_WAIT_TIMEOUT_S, TimeUnit.SECONDS)
+                doneLatch.await(PARALLEL_WAIT_TIMEOUT_S, TimeUnit.SECONDS)
             } finally {
                 System.clearProperty(COMPILE_DAEMON_STARTUP_TIMEOUT_PROPERTY)
                 System.clearProperty(COMPILE_DAEMON_VERBOSE_REPORT_PROPERTY)
@@ -896,6 +896,7 @@ class CompilerDaemonTest : KotlinIntegrationTestBase() {
                 )
                 assertTrue("No daemon elected:\n\n$msg\n--- elections:\n${electionLogs.joinToString("\n")}\n---", electionsSuccess)
                 assertTrue("Compilations failed: $resultsFailures of ${ParallelStartParams.threads}:\n\n$msg", resultsFailures > 0)
+                println("test passed (elected : $electionsSuccess, resultsFailures : $resultsFailures)")
             }
         }
     }
