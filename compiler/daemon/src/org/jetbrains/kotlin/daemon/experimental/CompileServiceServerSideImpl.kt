@@ -10,9 +10,10 @@ import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.impl.ZipHandler
 import com.intellij.openapi.vfs.impl.jar.CoreJarFileSystem
 import io.ktor.network.sockets.Socket
-import kotlinx.coroutines.experimental.Deferred
-import kotlinx.coroutines.experimental.async
-import kotlinx.coroutines.experimental.runBlocking
+import kotlinx.coroutines.experimental.*
+import kotlinx.coroutines.experimental.channels.actor
+import kotlinx.coroutines.experimental.channels.consumeEach
+import org.jetbrains.kotlin.backend.common.pop
 import org.jetbrains.kotlin.build.JvmSourceRoot
 import org.jetbrains.kotlin.cli.common.CLICompiler
 import org.jetbrains.kotlin.cli.common.ExitCode
@@ -85,6 +86,25 @@ private class EventManagerImpl : EventManager {
 typealias AnyMessage = Server.AnyMessage<CompileServiceServerSide>
 typealias Message = Server.Message<CompileServiceServerSide>
 typealias EndConnectionMessage = Server.EndConnectionMessage<CompileServiceServerSide>
+
+
+//class CoroutineTimer {
+//    private fun periodicTask(periodTime: Int, block: suspend () -> Unit): suspend () -> Unit = {
+//        while (true) {
+//            block()
+//            delay(periodTime)
+//        }
+//    }
+//
+//    suspend fun schedule(delayTime: Int, block: suspend () -> Unit) {
+//        delay(delayTime)
+//        block()
+//    }
+//
+//    suspend fun schedule(delayTime: Int, periodTime: Int, block: suspend () -> Unit) {
+//        schedule(delayTime, periodicTask(periodTime, block))
+//    }
+//}
 
 class CompileServiceServerSideImpl(
     override val serverSocketWithPort: ServerSocketWrapper,
@@ -259,11 +279,83 @@ class CompileServiceServerSideImpl(
         return anyDead
     }
 
+    private class CoroutineSafeRWLock {
+        private interface RWLockQuery
+        private abstract class RWQuery(val available: CompletableDeferred<Boolean>) : RWLockQuery
+        private interface ReleaseQuery : RWLockQuery
+        private class ReadQuery(available: CompletableDeferred<Boolean>) : RWQuery(available)
+        private class WriteQuery(available: CompletableDeferred<Boolean>) : RWQuery(available)
+        private class ReleaseWriteQuery : ReleaseQuery
+
+        private var available = true
+
+        private val rwlockActor = actor<RWLockQuery> {
+            val readQueries = arrayListOf<ReadQuery>()
+            val writeQueries = arrayListOf<WriteQuery>()
+            val randomGenerator = Random()
+            fun processRWQuery(query: RWQuery) {
+                when (query) {
+                    is ReadQuery -> {
+                        if (!available) {
+                            readQueries.add(query)
+                        } else {
+                            query.available.complete(available)
+                        }
+                    }
+                    is WriteQuery -> {
+                        if (!available) {
+                            writeQueries.add(query)
+                        } else {
+                            query.available.complete(available)
+                            available = false
+                        }
+                    }
+                }
+            }
+            consumeEach { query ->
+                when (query) {
+                    is RWQuery -> processRWQuery(query)
+                    is ReleaseWriteQuery -> {
+                        available = true
+                        processRWQuery(
+                            if (randomGenerator.nextBoolean())
+                                readQueries.pop()
+                            else
+                                writeQueries.pop()
+                        )
+                    }
+                }
+            }
+        }
+
+        suspend inline fun <T> read(block: () -> T): T {
+            val available = CompletableDeferred<Boolean>()
+            rwlockActor.send(ReadQuery(available))
+            available.await()
+            return block()
+        }
+
+        suspend inline fun <T> write(block: () -> T): T {
+            val available = CompletableDeferred<Boolean>()
+            rwlockActor.send(WriteQuery(available))
+            available.await()
+            val res = block()
+            rwlockActor.send(ReleaseWriteQuery())
+            return res
+        }
+
+        val isWriteLocked: Boolean
+            get() = !available
+
+    }
+
+    private val rwlock = CoroutineSafeRWLock()
+
     @Volatile
     private var _lastUsedSeconds = nowSeconds()
-    val lastUsedSeconds: Long get() = if (rwlock.isWriteLocked || rwlock.readLockCount - rwlock.readHoldCount > 0) nowSeconds() else _lastUsedSeconds
+    val lastUsedSeconds: Long get() = if (rwlock.isWriteLocked) nowSeconds() else _lastUsedSeconds
 
-    private val rwlock = ReentrantReadWriteLock()
+//    private val rwlock = ReentrantReadWriteLock()
 
     private var runFile: File
     private var securityData: SecurityData
@@ -330,7 +422,10 @@ class CompileServiceServerSideImpl(
                 })
         }
 
-    override suspend fun releaseCompileSession(sessionId: Int) = ifAlive(minAliveness = Aliveness.LastSession, info = "registerClient") {
+    override suspend fun releaseCompileSession(sessionId: Int) = ifAlive(
+        minAliveness = Aliveness.LastSession,
+        info = "registerClient"
+    ) {
         state.sessions.remove(sessionId)
         log.info("cleaning after session $sessionId")
         rwlock.write {
@@ -340,10 +435,11 @@ class CompileServiceServerSideImpl(
             // TODO: and some goes here
         }
         timer.schedule(0) {
-            periodicAndAfterSessionCheck()
+            launch { periodicAndAfterSessionCheck() }
         }
         CompileService.CallResult.Ok()
     }
+
 
     override suspend fun checkCompilerId(expectedCompilerId: CompilerId): Boolean =
         (compilerId.compilerVersion.isEmpty() || compilerId.compilerVersion == expectedCompilerId.compilerVersion) &&
@@ -670,10 +766,9 @@ class CompileServiceServerSideImpl(
             exceptionLoggingTimerThread(info = "periodicSeldomCheck") { periodicSeldomCheck() }
         }
         log.info("last_init_end")
-
     }
 
-    private inline fun exceptionLoggingTimerThread(info: String = "no info", body: () -> Unit) {
+    private fun exceptionLoggingTimerThread(info: String = "no info", body: () -> Unit) {
         try {
             println("exceptionLoggingTimerThread body($info) : starting...")
             body()
@@ -697,18 +792,18 @@ class CompileServiceServerSideImpl(
                 state.alive.get() == Aliveness.LastSession.ordinal && state.sessions.isEmpty() -> {
                     log.info("All sessions finished")
                     shutdownWithDelay()
-                    return
+                    return@ifAliveUnit
                 }
                 state.aliveClientsCount == 0 -> {
                     log.info("No more clients left")
                     shutdownWithDelay()
-                    return
+                    return@ifAliveUnit
                 }
             // discovery file removed - shutdown
                 !runFile.exists() -> {
                     log.info("Run file removed")
                     shutdownWithDelay()
-                    return
+                    return@ifAliveUnit
                 }
             }
         }
@@ -746,9 +841,9 @@ class CompileServiceServerSideImpl(
 
     // TODO: handover should include mechanism for client to switch to a new daemon then previous "handed over responsibilities" and shot down
     private fun initiateElections() {
-        ifAliveUnit(info = "initiateElections") {
-            log.info("initiate elections")
-            runBlocking {
+        runBlocking(Unconfined) {
+            ifAliveUnit(info = "initiateElections") {
+                log.info("initiate elections")
                 log.info("initiate elections - runBlocking")
                 val aliveWithOpts = walkDaemonsAsync(
                     File(daemonOptions.runFilesPathOrDefault),
@@ -828,6 +923,7 @@ class CompileServiceServerSideImpl(
                         //   - runServer (or better persuade client to runServer) a bigger daemon (in fact may be even simple shutdown will do, because of client's daemon choosing logic)
                     }
                 }
+
             }
         }
     }
@@ -852,21 +948,23 @@ class CompileServiceServerSideImpl(
         val currentCompilationsCount = compilationsCounter.get()
         log.info("Delayed shutdown in ${daemonOptions.shutdownDelayMilliseconds}ms")
         timer.schedule(daemonOptions.shutdownDelayMilliseconds) {
-            log.info("${log.name} .......shutdowning........")
-            log.info("${log.name} currentCompilationsCount = $currentCompilationsCount, compilationsCounter.get(): ${compilationsCounter.get()}")
-            state.delayedShutdownQueued.set(false)
-            if (currentClientsCount == state.clientsCounter &&
-                currentCompilationsCount == compilationsCounter.get() &&
-                currentSessionId == state.sessions.lastSessionId
-            ) {
-                log.info("currentCompilationsCount == compilationsCounter.get()")
-                ifAliveExclusiveUnit(minAliveness = Aliveness.LastSession, info = "initiate elections - shutdown") {
-                    log.info("Execute delayed shutdown!!!")
-                    log.fine("Execute delayed shutdown")
-                    shutdownNow()
+            async {
+                log.info("${log.name} .......shutdowning........")
+                log.info("${log.name} currentCompilationsCount = $currentCompilationsCount, compilationsCounter.get(): ${compilationsCounter.get()}")
+                state.delayedShutdownQueued.set(false)
+                if (currentClientsCount == state.clientsCounter &&
+                    currentCompilationsCount == compilationsCounter.get() &&
+                    currentSessionId == state.sessions.lastSessionId
+                ) {
+                    log.info("currentCompilationsCount == compilationsCounter.get()")
+                    ifAliveExclusiveUnit(minAliveness = Aliveness.LastSession, info = "initiate elections - shutdown") {
+                        log.info("Execute delayed shutdown!!!")
+                        log.fine("Execute delayed shutdown")
+                        shutdownNow()
+                    }
+                } else {
+                    log.info("Cancel delayed shutdown due to a new activity")
                 }
-            } else {
-                log.info("Cancel delayed shutdown due to a new activity")
             }
         }
     }
@@ -894,10 +992,13 @@ class CompileServiceServerSideImpl(
             shutdownIfIdle()
         } else {
             timer.schedule(1) {
-                ifAliveExclusiveUnit(minAliveness = Aliveness.LastSession, info = "gracefulShutdown") {
-                    shutdownIfIdle()
+                async {
+                    ifAliveExclusiveUnit(minAliveness = Aliveness.LastSession, info = "gracefulShutdown") {
+                        shutdownIfIdle()
+                    }
                 }
             }
+
         }
         return true
     }
@@ -1012,17 +1113,19 @@ class CompileServiceServerSideImpl(
         body: () -> CompileService.CallResult<R>
     ): CompileService.CallResult<R> = run {
         log.info("alive?")
-        ifAliveChecksImpl(minAliveness, info, body)
+        ifAliveChecksImpl(minAliveness, info, rwlock::read, body)
     }
 
-    private inline fun ifAliveUnit(minAliveness: Aliveness = Aliveness.LastSession, info: String = "no info", body: () -> Unit) {
+    private inline fun ifAliveUnit(
+        minAliveness: Aliveness = Aliveness.LastSession,
+        info: String = "no info",
+        body: () -> Unit
+    ) {
         log.info("ifAliveUnit(1)($info)")
-        run {
-            log.info("ifAliveUnit(2)($info)")
-            ifAliveChecksImpl(minAliveness, info) {
-                body()
-                CompileService.CallResult.Ok()
-            }
+        log.info("ifAliveUnit(2)($info)")
+        ifAliveChecksImpl(minAliveness, info, CoroutineSafeRWLock::read) {
+            body()
+            CompileService.CallResult.Ok()
         }
     }
 
@@ -1030,15 +1133,13 @@ class CompileServiceServerSideImpl(
         minAliveness: Aliveness = Aliveness.LastSession,
         info: String = "no info",
         body: () -> CompileService.CallResult<R>
-    ): CompileService.CallResult<R> = run {
-        ifAliveChecksImpl(minAliveness, info, body)
-    }
+    ): CompileService.CallResult<R> = ifAliveChecksImpl(minAliveness, info, CoroutineSafeRWLock::write, body)
 
     private inline fun ifAliveExclusiveUnit(
         minAliveness: Aliveness = Aliveness.LastSession,
         info: String = "no info",
         body: () -> Unit
-    ): Unit = run {
+    ): CompileService.CallResult<Unit> = rwlock.write {
         ifAliveChecksImpl(minAliveness) {
             body()
             CompileService.CallResult.Ok()
@@ -1048,6 +1149,7 @@ class CompileServiceServerSideImpl(
     private inline fun <R> ifAliveChecksImpl(
         minAliveness: Aliveness = Aliveness.LastSession,
         info: String = "no info",
+        lockAction: (() -> Unit) -> Unit,
         body: () -> CompileService.CallResult<R>
     ): CompileService.CallResult<R> {
         val curState = state.alive.get()
