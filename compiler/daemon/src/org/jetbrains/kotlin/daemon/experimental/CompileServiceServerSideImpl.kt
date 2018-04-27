@@ -3,12 +3,15 @@
  * that can be found in the license/LICENSE.txt file.
  */
 
+@file:Suppress("UNCHECKED_CAST")
+
 package org.jetbrains.kotlin.daemon.experimental
 
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.impl.ZipHandler
 import com.intellij.openapi.vfs.impl.jar.CoreJarFileSystem
+import com.sun.org.apache.xpath.internal.operations.Bool
 import io.ktor.network.sockets.Socket
 import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.channels.actor
@@ -61,7 +64,6 @@ import java.util.logging.Logger
 import kotlin.concurrent.read
 import kotlin.concurrent.schedule
 import kotlin.concurrent.write
-import kotlin.coroutines.experimental.coroutineContext
 
 fun nowSeconds() = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime())
 
@@ -126,6 +128,78 @@ class CompileServiceServerSideImpl(
 
     override suspend fun serverHandshake(input: ByteReadChannelWrapper, output: ByteWriteChannelWrapper, log: Logger): Boolean {
         return tryAcquireHandshakeMessage(input, log) && trySendHandshakeMessage(output, log)
+    }
+
+    interface CompileServiceTask
+    interface CompileServiceTaskWithResult : CompileServiceTask
+
+    open class ExclusiveTask(val completed: CompletableDeferred<Boolean>, val shutdownAction: suspend () -> Any) : CompileServiceTask
+    open class ShutdownTaskWithResult(val result: CompletableDeferred<Any>, val defaultValue: Any, shutdownAction: suspend () -> Any) :
+        ExclusiveTask(CompletableDeferred(), shutdownAction), CompileServiceTaskWithResult
+
+    open class OrdinaryTask(val completed: CompletableDeferred<Boolean>, val action: suspend () -> Any) : CompileServiceTask
+    class OrdinaryTaskWithResult(val result: CompletableDeferred<Any>, val defaultValue: Any, action: suspend () -> Any) :
+        OrdinaryTask(CompletableDeferred(), action),
+        CompileServiceTaskWithResult
+
+    class TaskFinished(val taskId: Int) : CompileServiceTask
+
+    private var shutdownTask: ExclusiveTask? = null
+    val queriesActor = actor<CompileServiceTask> {
+        var currentTaskId = 0
+        val activeTaskIds = arrayListOf<Int>()
+        fun tryInvokeShutdown() {
+            async {
+                if (activeTaskIds.isEmpty()) {
+                    shutdownTask?.let { task ->
+                        val res = task.shutdownAction()
+                        task.completed.complete(true)
+                        if (task is ShutdownTaskWithResult) {
+                            task.result.complete(res)
+                        }
+                    }
+                    shutdownTask = null
+                }
+            }
+        }
+        consumeEach { task ->
+            when (task) {
+                is ExclusiveTask -> {
+                    if (shutdownTask == null) {
+                        shutdownTask = task
+                        tryInvokeShutdown()
+                    } else {
+                        task.completed.complete(true)
+                        if (task is ShutdownTaskWithResult) {
+                            task.result.complete(task.defaultValue)
+                        }
+                    }
+                }
+                is OrdinaryTask -> {
+                    if (shutdownTask == null) {
+                        val id = currentTaskId++
+                        activeTaskIds.add(id)
+                        async {
+                            val res = task.action()
+                            if (task is OrdinaryTaskWithResult) {
+                                task.result.complete(res)
+                            }
+                            task.completed.complete(true)
+                            channel.send(TaskFinished(id))
+                        }
+                    } else {
+                        if (task is OrdinaryTaskWithResult) {
+                            task.result.complete(task.defaultValue)
+                        }
+                        task.completed.complete(true)
+                    }
+                }
+                is TaskFinished -> {
+                    activeTaskIds.remove(task.taskId)
+                    tryInvokeShutdown()
+                }
+            }
+        }
     }
 
     constructor(
@@ -279,104 +353,9 @@ class CompileServiceServerSideImpl(
         return anyDead
     }
 
-    private class CoroutineSafeRWLock {
-        private interface RWLockQuery
-        private abstract class RWQuery(val id: Int, val available: CompletableDeferred<Boolean>) : RWLockQuery
-        private abstract class ReleaseQuery(val id: Int) : RWLockQuery
-        private class ReadQuery(id: Int, available: CompletableDeferred<Boolean>) : RWQuery(id, available)
-        private class WriteQuery(id: Int, available: CompletableDeferred<Boolean>) : RWQuery(id, available)
-        private class ReleaseWriteQuery(id: Int) : ReleaseQuery(id)
-        private class ReleaseReadQuery(id: Int) : ReleaseQuery(id)
-
-        private var owningWriteId: Int? = null
-        private var nextId = 0
-
-        private val rwlockActor = actor<RWLockQuery> {
-            val activeReadIds = hashMapOf<Int, Int>()
-            var delayedWrite: WriteQuery? = null
-            fun processNewWriteQuery(query: WriteQuery) {
-                when (owningWriteId) {
-                    null -> {
-                        owningWriteId = query.id
-                        query.available.complete(true)
-                    }
-                    query.id -> {
-                        query.available.complete(true)
-                    }
-                    else -> {
-                        query.available.complete(false)
-                    }
-                }
-            }
-            consumeEach { query ->
-                when (query) {
-                    is ReadQuery -> {
-                        query.available.complete(owningWriteId == null || activeReadIds.contains(query.id))
-                        if (owningWriteId == null) {
-                            activeReadIds[query.id] = (activeReadIds[query.id] ?: 0) + 1
-                        }
-                    }
-                    is WriteQuery -> {
-                        if (delayedWrite != null) {
-                            query.available.complete(false)
-                        } else if (activeReadIds.isNotEmpty() && query.id !in activeReadIds) {
-                            delayedWrite = query
-                            owningWriteId = query.id
-                        } else processNewWriteQuery(query)
-                    }
-                    is ReleaseWriteQuery -> {
-                    }
-                    is ReleaseReadQuery -> {
-                        activeReadIds[query.id] = (activeReadIds[query.id] ?: 0) - 1
-                        if (activeReadIds[query.id] == 0) {
-                            activeReadIds.remove(query.id)
-                            if (activeReadIds.isEmpty()) {
-                                delayedWrite?.let(::processNewWriteQuery)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        class ReentrantState(val id: Int)
-
-        suspend inline fun <T> ReentrantState.read(block: ReentrantState.() -> T): T? {
-            val available = CompletableDeferred<Boolean>()
-            rwlockActor.send(ReadQuery(id, available))
-            if (available.await()) {
-                val res = this.block()
-                rwlockActor.send(ReleaseReadQuery(id))
-                return res
-            } else {
-                return null
-            }
-//            coroutineContext.
-        }
-
-        suspend inline fun <T> ReentrantState.write(block: ReentrantState.() -> T): T? {
-            val available = CompletableDeferred<Boolean>()
-            rwlockActor.send(WriteQuery(id, available))
-            available.await()
-            return if (available.await())
-                this.block()
-            else
-                null
-        }
-
-        val isWriteLocked: Boolean
-            get() = owningWriteId != null
-
-
-    }
-
-    private val rwlock = CoroutineSafeRWLock()
-
     @Volatile
     private var _lastUsedSeconds = nowSeconds()
-    val lastUsedSeconds: Long get() = if (rwlock.isWriteLocked) nowSeconds() else _lastUsedSeconds
-
-//    private val rwlock = ReentrantReadWriteLock()
+    val lastUsedSeconds: Long get() = if (shutdownTask != null) nowSeconds() else _lastUsedSeconds // TODO
 
     private var runFile: File
     private var securityData: SecurityData
@@ -449,11 +428,9 @@ class CompileServiceServerSideImpl(
     ) {
         state.sessions.remove(sessionId)
         log.info("cleaning after session $sessionId")
-//        with(CoroutineSafeRWLock.ReentrantState(0)) {
-            rwlock.write {
-                clearJarCache()
-            }
-//        }
+        val completed = CompletableDeferred<Boolean>()
+        queriesActor.send(ExclusiveTask(completed, { clearJarCache() }))
+        completed.await()
         if (state.sessions.isEmpty()) {
             // TODO: and some goes here
         }
@@ -870,7 +847,6 @@ class CompileServiceServerSideImpl(
         async {
             ifAliveUnit(info = "initiateElections") {
                 log.info("initiate elections")
-                log.info("initiate elections - runBlocking")
                 val aliveWithOpts = walkDaemonsAsync(
                     File(daemonOptions.runFilesPathOrDefault),
                     compilerId,
@@ -1019,7 +995,7 @@ class CompileServiceServerSideImpl(
     }
 
     private fun gracefulShutdownImpl() {
-        runBlocking(Unconfined) {
+        async {
             ifAliveExclusiveUnit(minAliveness = Aliveness.LastSession, info = "gracefulShutdown") {
                 shutdownIfIdle()
             }
@@ -1043,28 +1019,24 @@ class CompileServiceServerSideImpl(
         tracer: RemoteOperationsTracer?,
         body: suspend (EventManager, Profiler) -> ExitCode
     ): Deferred<CompileService.CallResult<Int>> = async {
-        ifAlive(info = "doCompile") {
-            log.info("alive!")
-            withValidClientOrSessionProxy(sessionId) {
-                //                tracer?.before("compile")
-                log.info("before compile")
-                val rpcProfiler = if (daemonOptions.reportPerf) WallAndThreadTotalProfiler() else DummyProfiler()
-                val eventManger = EventManagerImpl()
-                try {
-                    log.info("trying get exitCode")
-                    val exitCode = checkedCompile(daemonMessageReporterAsync, rpcProfiler) {
-                        log.info("body of exitCode")
-                        body(eventManger, rpcProfiler).code.also {
-                            log.info("after body of exitCode")
-                        }
-                    }.await()
-                    log.info("got exitCode")
-                    CompileService.CallResult.Good(exitCode)
-                } finally {
-                    eventManger.fireCompilationFinished()
-//                    tracer?.after("compile")
-                    log.info("after compile")
-                }
+        log.info("alive!")
+        withValidClientOrSessionProxy(sessionId) {
+            log.info("before compile")
+            val rpcProfiler = if (daemonOptions.reportPerf) WallAndThreadTotalProfiler() else DummyProfiler()
+            val eventManger = EventManagerImpl()
+            try {
+                log.info("trying get exitCode")
+                val exitCode = checkedCompile(daemonMessageReporterAsync, rpcProfiler) {
+                    log.info("body of exitCode")
+                    body(eventManger, rpcProfiler).code.also {
+                        log.info("after body of exitCode")
+                    }
+                }.await()
+                log.info("got exitCode")
+                CompileService.CallResult.Good(exitCode)
+            } finally {
+                eventManger.fireCompilationFinished()
+                log.info("after compile")
             }
         }
     }
@@ -1141,53 +1113,72 @@ class CompileServiceServerSideImpl(
         (KotlinCoreEnvironment.applicationEnvironment?.jarFileSystem as? CoreJarFileSystem)?.clearHandlersCache()
     }
 
-    private suspend inline fun <R> ifAlive(
+    private suspend fun <R> ifAlive(
         minAliveness: Aliveness = Aliveness.LastSession,
         info: String = "no info",
-        body: () -> CompileService.CallResult<R>
-    ): CompileService.CallResult<R> = rwlock.read {
-        log.info("alive?")
-        ifAliveChecksImpl(minAliveness, info, body)
-    } ?: CompileService.CallResult.Dying()
+        body: suspend () -> CompileService.CallResult<R>
+    ): CompileService.CallResult<R> {
+        val result = CompletableDeferred<Any>()
+        queriesActor.send(OrdinaryTaskWithResult(result, CompileService.CallResult.Dying(), {
+            log.info("alive?")
+            ifAliveChecksImpl(minAliveness, info, body)
+        }))
+        return result.await() as CompileService.CallResult<R>
+    }
 
-    private suspend inline fun ifAliveUnit(
+    private suspend fun ifAliveUnit(
         minAliveness: Aliveness = Aliveness.LastSession,
         info: String = "no info",
-        body: () -> Unit
+        body: suspend () -> Unit
     ) {
         log.info("ifAliveUnit(1)($info)")
-        rwlock.read {
-            log.info("ifAliveUnit(2)($info)")
-            ifAliveChecksImpl(minAliveness, info) {
+        val completed = CompletableDeferred<Boolean>()
+        queriesActor.send(
+            OrdinaryTask(
+                completed,
+                {
+                    log.info("ifAliveUnit(2)($info)")
+                    ifAliveChecksImpl(minAliveness, info) {
+                        body()
+                        CompileService.CallResult.Ok()
+                    }
+                }
+            )
+        )
+        completed.await()
+    }
+
+    private suspend fun <R> ifAliveExclusive(
+        minAliveness: Aliveness = Aliveness.LastSession,
+        info: String = "no info",
+        body: suspend () -> CompileService.CallResult<R>
+    ): CompileService.CallResult<R> {
+        val result = CompletableDeferred<Any>()
+        queriesActor.send(ShutdownTaskWithResult(result, CompileService.CallResult.Dying(), {
+            ifAliveChecksImpl(minAliveness, info, body)
+        }))
+        return result.await() as CompileService.CallResult<R>
+    }
+
+    private suspend fun ifAliveExclusiveUnit(
+        minAliveness: Aliveness = Aliveness.LastSession,
+        info: String = "no info",
+        body: suspend () -> Unit
+    ): CompileService.CallResult<Unit> {
+        val result = CompletableDeferred<Any>()
+        queriesActor.send(ShutdownTaskWithResult(result, CompileService.CallResult.Dying(), {
+            ifAliveChecksImpl(minAliveness) {
                 body()
                 CompileService.CallResult.Ok()
             }
-        }
+        }))
+        return result.await() as CompileService.CallResult<Unit>
     }
 
-    private suspend inline fun <R> ifAliveExclusive(
+    private suspend fun <R> ifAliveChecksImpl(
         minAliveness: Aliveness = Aliveness.LastSession,
         info: String = "no info",
-        body: () -> CompileService.CallResult<R>
-    ): CompileService.CallResult<R> = rwlock.write {
-        ifAliveChecksImpl(minAliveness, info, body)
-    } ?: CompileService.CallResult.Dying()
-
-    private suspend inline fun ifAliveExclusiveUnit(
-        minAliveness: Aliveness = Aliveness.LastSession,
-        info: String = "no info",
-        body: () -> Unit
-    ): CompileService.CallResult<Unit> = rwlock.write {
-        ifAliveChecksImpl(minAliveness) {
-            body()
-            CompileService.CallResult.Ok()
-        }
-    } ?: CompileService.CallResult.Dying()
-
-    private inline fun <R> ifAliveChecksImpl(
-        minAliveness: Aliveness = Aliveness.LastSession,
-        info: String = "no info",
-        body: () -> CompileService.CallResult<R>
+        body: suspend () -> CompileService.CallResult<R>
     ): CompileService.CallResult<R> {
         val curState = state.alive.get()
         log.info("[$info] alive check? - state = $curState ; minAliveness.ordinal = ${minAliveness.ordinal}")

@@ -783,7 +783,7 @@ class CompilerDaemonTest : KotlinIntegrationTestBase() {
     }
 
     private object ParallelStartParams {
-        const val threads = 10
+        const val threads = 2
         const val performCompilation = false
         const val connectionFailedErr = -100
     }
