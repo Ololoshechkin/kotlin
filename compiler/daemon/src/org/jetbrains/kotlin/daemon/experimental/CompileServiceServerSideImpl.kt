@@ -11,7 +11,6 @@ import com.intellij.openapi.Disposable
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.impl.ZipHandler
 import com.intellij.openapi.vfs.impl.jar.CoreJarFileSystem
-import com.sun.org.apache.xpath.internal.operations.Bool
 import io.ktor.network.sockets.Socket
 import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.channels.actor
@@ -148,9 +147,12 @@ class CompileServiceServerSideImpl(
     val queriesActor = actor<CompileServiceTask> {
         var currentTaskId = 0
         val activeTaskIds = arrayListOf<Int>()
+        val suspendedTasks = arrayListOf<CompileServiceTask>()
         fun tryInvokeShutdown() {
-            async {
-                if (activeTaskIds.isEmpty()) {
+            log.info("in tryInvokeShutdown")
+            if (activeTaskIds.isEmpty()) {
+                async {
+                    log.info("activeTaskIds.isEmpty() == true")
                     shutdownTask?.let { task ->
                         val res = task.shutdownAction()
                         task.completed.complete(true)
@@ -159,24 +161,37 @@ class CompileServiceServerSideImpl(
                         }
                     }
                     shutdownTask = null
+                    log.info("shutdownTask = null")
+                    suspendedTasks.forEach {
+                        channel.send(it)
+                        log.info("sent task to self")
+                    }
+                    suspendedTasks.clear()
                 }
+            } else {
+                log.info("activeTaskIds.isEmpty() == false")
             }
+
         }
         consumeEach { task ->
             when (task) {
                 is ExclusiveTask -> {
+                    log.info("nextTask() = ExclusiveTask")
                     if (shutdownTask == null) {
                         shutdownTask = task
                         tryInvokeShutdown()
                     } else {
-                        task.completed.complete(true)
-                        if (task is ShutdownTaskWithResult) {
-                            task.result.complete(task.defaultValue)
-                        }
+//                        task.completed.complete(true)
+//                        if (task is ShutdownTaskWithResult) {
+//                            task.result.complete(task.defaultValue)
+//                        }
+                        suspendedTasks.add(task)
                     }
                 }
                 is OrdinaryTask -> {
+                    log.info("nextTask() = OrdinaryTask")
                     if (shutdownTask == null) {
+                        println("executing...")
                         val id = currentTaskId++
                         activeTaskIds.add(id)
                         async {
@@ -185,13 +200,16 @@ class CompileServiceServerSideImpl(
                                 task.result.complete(res)
                             }
                             task.completed.complete(true)
+                            log.info("TaskFinished : YES")
                             channel.send(TaskFinished(id))
                         }
                     } else {
-                        if (task is OrdinaryTaskWithResult) {
-                            task.result.complete(task.defaultValue)
-                        }
-                        task.completed.complete(true)
+                        log.info("suspendedTasks.add(task)")
+                        suspendedTasks.add(task)
+//                        if (task is OrdinaryTaskWithResult) {
+//                            task.result.complete(task.defaultValue)
+//                        }
+//                        task.completed.complete(true)
                     }
                 }
                 is TaskFinished -> {
@@ -409,7 +427,7 @@ class CompileServiceServerSideImpl(
             CompileService.CallResult.Ok()
         }
 
-    override suspend fun getClients(): CompileService.CallResult<List<String>> = ifAlive(info = "registerClient") {
+    override suspend fun getClients(): CompileService.CallResult<List<String>> = ifAlive(info = "getClients") {
         CompileService.CallResult.Good(state.getClientsFlagPaths())
     }
 
@@ -424,7 +442,7 @@ class CompileServiceServerSideImpl(
 
     override suspend fun releaseCompileSession(sessionId: Int) = ifAlive(
         minAliveness = Aliveness.LastSession,
-        info = "registerClient"
+        info = "releaseCompileSession"
     ) {
         state.sessions.remove(sessionId)
         log.info("cleaning after session $sessionId")
@@ -995,7 +1013,9 @@ class CompileServiceServerSideImpl(
     }
 
     private fun gracefulShutdownImpl() {
+        log.info("gracefulShutdownImpl 1/2")
         async {
+            log.info("gracefulShutdownImpl 2/2")
             ifAliveExclusiveUnit(minAliveness = Aliveness.LastSession, info = "gracefulShutdown") {
                 shutdownIfIdle()
             }
