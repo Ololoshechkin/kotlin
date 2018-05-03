@@ -142,6 +142,7 @@ class CompileServiceServerSideImpl(
         CompileServiceTaskWithResult
 
     class TaskFinished(val taskId: Int) : CompileServiceTask
+    class ExclusiveTaskFinished() : CompileServiceTask
 
     private var shutdownTask: ExclusiveTask? = null
     val queriesActor = actor<CompileServiceTask> {
@@ -160,13 +161,8 @@ class CompileServiceServerSideImpl(
                             task.result.complete(res)
                         }
                     }
-                    shutdownTask = null
                     log.info("shutdownTask = null")
-                    suspendedTasks.forEach {
-                        channel.send(it)
-                        log.info("sent task to self")
-                    }
-                    suspendedTasks.clear()
+                    channel.send(ExclusiveTaskFinished())
                 }
             } else {
                 log.info("activeTaskIds.isEmpty() == false")
@@ -215,6 +211,13 @@ class CompileServiceServerSideImpl(
                 is TaskFinished -> {
                     activeTaskIds.remove(task.taskId)
                     tryInvokeShutdown()
+                }
+                is ExclusiveTaskFinished -> {
+                    shutdownTask = null
+                    suspendedTasks.forEach {
+                        channel.send(it)
+                    }
+                    suspendedTasks.clear()
                 }
             }
         }
