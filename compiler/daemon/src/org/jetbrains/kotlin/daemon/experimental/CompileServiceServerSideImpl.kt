@@ -11,11 +11,13 @@ import com.intellij.openapi.Disposable
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.impl.ZipHandler
 import com.intellij.openapi.vfs.impl.jar.CoreJarFileSystem
-import com.sun.org.apache.xpath.internal.operations.Bool
 import io.ktor.network.sockets.Socket
-import kotlinx.coroutines.experimental.*
+import kotlinx.coroutines.experimental.CompletableDeferred
+import kotlinx.coroutines.experimental.Deferred
+import kotlinx.coroutines.experimental.async
 import kotlinx.coroutines.experimental.channels.actor
 import kotlinx.coroutines.experimental.channels.consumeEach
+import kotlinx.coroutines.experimental.runBlocking
 import org.jetbrains.kotlin.build.JvmSourceRoot
 import org.jetbrains.kotlin.cli.common.CLICompiler
 import org.jetbrains.kotlin.cli.common.ExitCode
@@ -37,6 +39,10 @@ import org.jetbrains.kotlin.config.Services
 import org.jetbrains.kotlin.daemon.LazyClasspathWatcher
 import org.jetbrains.kotlin.daemon.common.*
 import org.jetbrains.kotlin.daemon.common.experimental.*
+import org.jetbrains.kotlin.daemon.common.experimental.DummyProfiler
+import org.jetbrains.kotlin.daemon.common.experimental.Profiler
+import org.jetbrains.kotlin.daemon.common.experimental.WallAndThreadAndMemoryTotalProfiler
+import org.jetbrains.kotlin.daemon.common.experimental.WallAndThreadTotalProfiler
 import org.jetbrains.kotlin.daemon.common.experimental.socketInfrastructure.*
 import org.jetbrains.kotlin.daemon.incremental.experimental.RemoteAnnotationsFileUpdaterAsync
 import org.jetbrains.kotlin.daemon.incremental.experimental.RemoteArtifactChangesProviderAsync
@@ -48,7 +54,7 @@ import org.jetbrains.kotlin.incremental.*
 import org.jetbrains.kotlin.incremental.components.LookupTracker
 import org.jetbrains.kotlin.load.kotlin.incremental.components.IncrementalCompilationComponents
 import org.jetbrains.kotlin.modules.Module
-import org.jetbrains.kotlin.progress.CompilationCanceledStatus
+import org.jetbrains.kotlin.progress.experimental.CompilationCanceledStatus
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.PrintStream
@@ -69,18 +75,18 @@ fun nowSeconds() = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime())
 
 
 interface EventManager {
-    fun onCompilationFinished(f: () -> Unit)
+    suspend fun onCompilationFinished(f: suspend () -> Unit)
 }
 
 private class EventManagerImpl : EventManager {
-    private val onCompilationFinished = arrayListOf<() -> Unit>()
+    private val onCompilationFinished = arrayListOf<suspend () -> Unit>()
 
     @Throws(RemoteException::class)
-    override fun onCompilationFinished(f: () -> Unit) {
+    override suspend fun onCompilationFinished(f: suspend () -> Unit) {
         onCompilationFinished.add(f)
     }
 
-    fun fireCompilationFinished() {
+    suspend fun fireCompilationFinished() {
         onCompilationFinished.forEach { it() }
     }
 }
@@ -144,9 +150,11 @@ class CompileServiceServerSideImpl(
 
     class TaskFinished(val taskId: Int) : CompileServiceTask
 
-    private var shutdownTask: ExclusiveTask? = null
+    var isWriteLocked = false
+    var isReadLocked = false
     val queriesActor = actor<CompileServiceTask> {
         var currentTaskId = 0
+        var shutdownTask: ExclusiveTask? = null
         val activeTaskIds = arrayListOf<Int>()
         fun tryInvokeShutdown() {
             async {
@@ -159,6 +167,7 @@ class CompileServiceServerSideImpl(
                         }
                     }
                     shutdownTask = null
+                    isWriteLocked = false
                 }
             }
         }
@@ -167,6 +176,7 @@ class CompileServiceServerSideImpl(
                 is ExclusiveTask -> {
                     if (shutdownTask == null) {
                         shutdownTask = task
+                        isWriteLocked = true
                         tryInvokeShutdown()
                     } else {
                         task.completed.complete(true)
@@ -179,6 +189,7 @@ class CompileServiceServerSideImpl(
                     if (shutdownTask == null) {
                         val id = currentTaskId++
                         activeTaskIds.add(id)
+                        isReadLocked = true
                         async {
                             val res = task.action()
                             if (task is OrdinaryTaskWithResult) {
@@ -196,6 +207,7 @@ class CompileServiceServerSideImpl(
                 }
                 is TaskFinished -> {
                     activeTaskIds.remove(task.taskId)
+                    isReadLocked = activeTaskIds.isEmpty()
                     tryInvokeShutdown()
                 }
             }
@@ -355,7 +367,7 @@ class CompileServiceServerSideImpl(
 
     @Volatile
     private var _lastUsedSeconds = nowSeconds()
-    val lastUsedSeconds: Long get() = if (shutdownTask != null) nowSeconds() else _lastUsedSeconds // TODO
+    val lastUsedSeconds: Long get() = if (isReadLocked || isWriteLocked) nowSeconds() else _lastUsedSeconds
 
     private var runFile: File
     private var securityData: SecurityData
@@ -467,91 +479,89 @@ class CompileServiceServerSideImpl(
             CompileService.CallResult.Good(res)
         }
 
-    override fun compile(
+    override suspend fun compile(
         sessionId: Int,
         compilerArguments: Array<out String>,
         compilationOptions: CompilationOptions,
         servicesFacade: CompilerServicesFacadeBaseClientSide,
         compilationResults: CompilationResultsClientSide
-    ): Deferred<CompileService.CallResult<Int>> = async {
-        ifAlive(info = "compile") {
-            log.info("servicesFacade : $servicesFacade")
-            servicesFacade.report(ReportCategory.DAEMON_MESSAGE, ReportSeverity.INFO, "abacaba")
-            log.info("servicesFacade - sent \"abacaba\"")
-            val messageCollector = CompileServicesFacadeMessageCollector(servicesFacade, compilationOptions)
-            val daemonReporter = DaemonMessageReporterAsync(servicesFacade, compilationOptions)
-            val targetPlatform = compilationOptions.targetPlatform
-            log.info("Starting compilation with args: " + compilerArguments.joinToString(" "))
+    ): CompileService.CallResult<Int> = ifAlive(info = "compile") {
+        log.info("servicesFacade : $servicesFacade")
+        servicesFacade.report(ReportCategory.DAEMON_MESSAGE, ReportSeverity.INFO, "abacaba")
+        log.info("servicesFacade - sent \"abacaba\"")
+        val messageCollector = CompileServicesFacadeMessageCollector(servicesFacade, compilationOptions)
+        val daemonReporter = DaemonMessageReporterAsync(servicesFacade, compilationOptions)
+        val targetPlatform = compilationOptions.targetPlatform
+        log.info("Starting compilation with args: " + compilerArguments.joinToString(" "))
 
-            @Suppress("UNCHECKED_CAST")
-            val compiler = when (targetPlatform) {
-                CompileService.TargetPlatform.JVM -> K2JVMCompiler()
-                CompileService.TargetPlatform.JS -> K2JSCompiler()
-                CompileService.TargetPlatform.METADATA -> K2MetadataCompiler()
-            } as CLICompiler<CommonCompilerArguments>
+        @Suppress("UNCHECKED_CAST")
+        val compiler = when (targetPlatform) {
+            CompileService.TargetPlatform.JVM -> K2JVMCompiler()
+            CompileService.TargetPlatform.JS -> K2JSCompiler()
+            CompileService.TargetPlatform.METADATA -> K2MetadataCompiler()
+        } as CLICompiler<CommonCompilerArguments>
 
-            val k2PlatformArgs = compiler.createArguments()
-            parseCommandLineArguments(compilerArguments.asList(), k2PlatformArgs)
-            val argumentParseError = validateArguments(k2PlatformArgs.errors)
-            if (argumentParseError != null) {
-                messageCollector.report(CompilerMessageSeverity.ERROR, argumentParseError)
-                CompileService.CallResult.Good(ExitCode.COMPILATION_ERROR.code)
-            } else when (compilationOptions.compilerMode) {
-                CompilerMode.JPS_COMPILER -> {
-                    val jpsServicesFacade = servicesFacade as CompilerCallbackServicesFacadeClientSide
+        val k2PlatformArgs = compiler.createArguments()
+        parseCommandLineArguments(compilerArguments.asList(), k2PlatformArgs)
+        val argumentParseError = validateArguments(k2PlatformArgs.errors)
+        if (argumentParseError != null) {
+            messageCollector.report(CompilerMessageSeverity.ERROR, argumentParseError)
+            CompileService.CallResult.Good(ExitCode.COMPILATION_ERROR.code)
+        } else when (compilationOptions.compilerMode) {
+            CompilerMode.JPS_COMPILER -> {
+                val jpsServicesFacade = servicesFacade as CompilerCallbackServicesFacadeClientSide
 
-                    withIC(enabled = servicesFacade.hasIncrementalCaches()) {
-                        doCompile(sessionId, daemonReporter, tracer = null) { eventManger, profiler ->
-                            val services = createCompileServices(jpsServicesFacade, eventManger, profiler).await()
-                            compiler.exec(messageCollector, services, k2PlatformArgs)
-                        }.await()
-                    }
-                }
-                CompilerMode.NON_INCREMENTAL_COMPILER -> {
-                    doCompile(sessionId, daemonReporter, tracer = null) { _, _ ->
-                        log.info("(in doCompile's body) - start")
-                        compiler.exec(messageCollector, Services.EMPTY, k2PlatformArgs).also {
-                            log.info("(in doCompile's body) - end")
-                        }
+                withIC(enabled = servicesFacade.hasIncrementalCaches()) {
+                    doCompile(sessionId, daemonReporter, tracer = null) { eventManger, profiler ->
+                        val services = createCompileServices(jpsServicesFacade, eventManger, profiler).await()
+                        compiler.exec(messageCollector, services, k2PlatformArgs)
                     }.await()
                 }
-                CompilerMode.INCREMENTAL_COMPILER -> {
-                    val gradleIncrementalArgs = compilationOptions as IncrementalCompilationOptions
-                    val gradleIncrementalServicesFacade = servicesFacade as IncrementalCompilerServicesFacadeAsync
-
-                    when (targetPlatform) {
-                        CompileService.TargetPlatform.JVM -> {
-                            val k2jvmArgs = k2PlatformArgs as K2JVMCompilerArguments
-                            withIC {
-                                doCompile(sessionId, daemonReporter, tracer = null) { _, _ ->
-                                    execIncrementalCompiler(
-                                        k2jvmArgs, gradleIncrementalArgs, gradleIncrementalServicesFacade, compilationResults,
-                                        messageCollector, daemonReporter
-                                    )
-                                }.await()
-                            }
-                        }
-                        CompileService.TargetPlatform.JS -> {
-                            val k2jsArgs = k2PlatformArgs as K2JSCompilerArguments
-
-                            withJsIC {
-                                doCompile(sessionId, daemonReporter, tracer = null) { _, _ ->
-                                    execJsIncrementalCompiler(
-                                        k2jsArgs,
-                                        gradleIncrementalArgs,
-                                        gradleIncrementalServicesFacade,
-                                        compilationResults,
-                                        messageCollector
-                                    )
-                                }.await()
-                            }
-                        }
-                        else -> throw IllegalStateException("Incremental compilation is not supported for target platform: $targetPlatform")
-
-                    }
-                }
-                else -> throw IllegalStateException("Unknown compilation mode ${compilationOptions.compilerMode}")
             }
+            CompilerMode.NON_INCREMENTAL_COMPILER -> {
+                doCompile(sessionId, daemonReporter, tracer = null) { _, _ ->
+                    log.info("(in doCompile's body) - start")
+                    compiler.exec(messageCollector, Services.EMPTY, k2PlatformArgs).also {
+                        log.info("(in doCompile's body) - end")
+                    }
+                }.await()
+            }
+            CompilerMode.INCREMENTAL_COMPILER -> {
+                val gradleIncrementalArgs = compilationOptions as IncrementalCompilationOptions
+                val gradleIncrementalServicesFacade = servicesFacade as IncrementalCompilerServicesFacadeAsync
+
+                when (targetPlatform) {
+                    CompileService.TargetPlatform.JVM -> {
+                        val k2jvmArgs = k2PlatformArgs as K2JVMCompilerArguments
+                        withIC {
+                            doCompile(sessionId, daemonReporter, tracer = null) { _, _ ->
+                                execIncrementalCompiler(
+                                    k2jvmArgs, gradleIncrementalArgs, gradleIncrementalServicesFacade, compilationResults,
+                                    messageCollector, daemonReporter
+                                )
+                            }.await()
+                        }
+                    }
+                    CompileService.TargetPlatform.JS -> {
+                        val k2jsArgs = k2PlatformArgs as K2JSCompilerArguments
+
+                        withJsIC {
+                            doCompile(sessionId, daemonReporter, tracer = null) { _, _ ->
+                                execJsIncrementalCompiler(
+                                    k2jsArgs,
+                                    gradleIncrementalArgs,
+                                    gradleIncrementalServicesFacade,
+                                    compilationResults,
+                                    messageCollector
+                                )
+                            }.await()
+                        }
+                    }
+                    else -> throw IllegalStateException("Incremental compilation is not supported for target platform: $targetPlatform")
+
+                }
+            }
+            else -> throw IllegalStateException("Unknown compilation mode ${compilationOptions.compilerMode}")
         }
     }
 
@@ -700,16 +710,14 @@ class CompileServiceServerSideImpl(
             }
         }
 
-    override fun replCheck(
+    override suspend fun replCheck(
         sessionId: Int,
         replStateId: Int,
         codeLine: ReplCodeLine
-    ): Deferred<CompileService.CallResult<ReplCheckResult>> = async {
-        ifAlive(minAliveness = Aliveness.Alive, info = "replCheck") {
-            withValidRepl(sessionId) {
-                withValidReplState(replStateId) { state ->
-                    check(state, codeLine)
-                }
+    ): CompileService.CallResult<ReplCheckResult> = ifAlive(minAliveness = Aliveness.Alive, info = "replCheck") {
+        withValidRepl(sessionId) {
+            withValidReplState(replStateId) { state ->
+                check(state, codeLine)
             }
         }
     }
@@ -786,7 +794,7 @@ class CompileServiceServerSideImpl(
 
         val anyDead = state.sessions.cleanDead() || state.cleanDeadClients()
 
-        async {
+        runBlocking {
             ifAliveUnit(minAliveness = Aliveness.LastSession, info = "periodicAndAfterSessionCheck - 1") {
                 when {
                 // check if in graceful shutdown state and all sessions are closed
@@ -952,7 +960,7 @@ class CompileServiceServerSideImpl(
             currentSessionId == state.sessions.lastSessionId
         ) {
             log.info("currentCompilationsCount == compilationsCounter.get()")
-            runBlocking(Unconfined) {
+            runBlocking {
                 ifAliveExclusiveUnit(minAliveness = Aliveness.LastSession, info = "initiate elections - shutdown") {
                     log.info("Execute delayed shutdown!!!")
                     log.fine("Execute delayed shutdown")
