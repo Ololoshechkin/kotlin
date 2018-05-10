@@ -51,19 +51,24 @@ interface Server<out T : ServerBase> : ServerBase {
                 Server.State.CLOSED
             }
             is Server.ServerDownMessage<in T> -> Server.State.CLOSED
+            is Server.KeepAliveMessage<in T> -> Server.State.WORKING.also {
+                async {
+                    output.writeObject(DefaultAuthorizableClient.MessageReply(msg.messageId ?: -1, KeepAliveAcknowledgement<T>()))
+                }
+            }
             else -> Server.State.ERROR
         }
 
     fun attachClient(client: Socket): Deferred<State> = async {
         val (input, output) = client.openIO(log)
-        if (!serverHandshake(input, output, log)) {
-            log.info_and_print("failed to establish connection with client (handshake failed)")
-            return@async Server.State.UNVERIFIED
-        }
-        if (!securityCheck(input)) {
-            log.info_and_print("failed to check securitay")
-            return@async Server.State.UNVERIFIED
-        }
+//        if (!serverHandshake(input, output, log)) {
+//            log.info_and_print("failed to establish connection with client (handshake failed)")
+//            return@async Server.State.UNVERIFIED
+//        }
+//        if (!securityCheck(input)) {
+//            log.info_and_print("failed to check securitay")
+//            return@async Server.State.UNVERIFIED
+//        }
         log.info_and_print("   client verified ($client)")
         clients[client] = ClientInfo(client, input, output)
         log.info_and_print("   ($client)client in clients($clients)")
@@ -125,6 +130,10 @@ interface Server<out T : ServerBase> : ServerBase {
     }
 
     class EndConnectionMessage<ServerType : ServerBase> : AnyMessage<ServerType>()
+
+    class KeepAliveMessage<ServerType : ServerBase> : AnyMessage<ServerType>()
+
+    class KeepAliveAcknowledgement<ServerType : ServerBase> : AnyMessage<ServerType>()
 
     class ServerDownMessage<ServerType : ServerBase> : AnyMessage<ServerType>()
 
