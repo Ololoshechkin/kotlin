@@ -7,14 +7,16 @@ import kotlinx.coroutines.experimental.channels.SendChannel
 import kotlinx.coroutines.experimental.channels.actor
 import kotlinx.coroutines.experimental.channels.consumeEach
 import kotlinx.coroutines.experimental.runBlocking
+import org.jetbrains.kotlin.daemon.common.experimental.KEEPALIVE_PERIOD
 import org.jetbrains.kotlin.daemon.common.experimental.LoopbackNetworkInterface
-import sun.net.ConnectionResetException
 import java.beans.Transient
 import java.io.IOException
 import java.io.ObjectInputStream
 import java.io.ObjectOutputStream
 import java.io.Serializable
+import java.util.*
 import java.util.logging.Logger
+import kotlin.concurrent.schedule
 
 
 interface Client<ServerType : ServerBase> : Serializable, AutoCloseable {
@@ -72,6 +74,7 @@ abstract class DefaultAuthorizableClient<ServerType : ServerBase>(
     private interface ReadActorQuery
     private data class ExpectReplyQuery(val messageId: Int, val result: CompletableDeferred<MessageReply<*>>) : ReadActorQuery
     private class ReceiveReplyQuery : ReadActorQuery
+    private class StopAllRequests : ReadActorQuery
 
     private interface WriteActorQuery
     private data class SendNoreplyMessageQuery(val message: Server.AnyMessage<*>) : WriteActorQuery
@@ -184,6 +187,12 @@ abstract class DefaultAuthorizableClient<ServerType : ServerBase>(
                             broadcastIOException(e)
                         }
                     }
+                    is StopAllRequests -> {
+                        receivedMessages.clear()
+                        expectedMessages.forEach {
+                            it.value.result.complete(MessageReply(it.key, IOException("KeepAlive failed")))
+                        }
+                    }
                 }
             }
         }
@@ -203,18 +212,35 @@ abstract class DefaultAuthorizableClient<ServerType : ServerBase>(
             log.info_and_print("OK serv.openIO() |port=$serverPort|")
             input = it.input
             output = it.output
-            if (!clientHandshake(input, output, log)) {
-                log.info_and_print("failed handshake($serverPort)")
-                close()
-                throw ConnectionResetException("failed to establish connection with server (handshake failed)")
-            }
-            if (!authorizeOnServer(output)) {
-                log.info_and_print("failed authorization($serverPort)")
-                close()
-                throw ConnectionResetException("failed to establish connection with server (authorization failed)")
-            }
+//            if (!clientHandshake(input, output, log)) {
+//                log.info_and_print("failed handshake($serverPort)")
+//                close()
+//                throw ConnectionResetException("failed to establish connection with server (handshake failed)")
+//            }
+//            if (!authorizeOnServer(output)) {
+//                log.info_and_print("failed authorization($serverPort)")
+//                close()
+//                throw ConnectionResetException("failed to establish connection with server (authorization failed)")
+//            }
+            startKeepAlives()
         }
 
+    }
+
+    private fun startKeepAlives() {
+        val timer = Timer()
+        timer.schedule(delay = 10L, period = KEEPALIVE_PERIOD) {
+            if (!checkServerAliveness()) {
+                timer.cancel()
+            }
+        }
+    }
+
+    private fun checkServerAliveness(): Boolean = runBlocking {
+        val id = sendMessage(Server.KeepAliveMessage())
+        runWithTimeout(timeout = KEEPALIVE_PERIOD / 2) {
+            readMessage<Server.KeepAliveAcknowledgement<ServerType>>(id)
+        }?.let { true } ?: readActor.send(StopAllRequests()).let { false }
     }
 
     @Throws(ClassNotFoundException::class, IOException::class)
