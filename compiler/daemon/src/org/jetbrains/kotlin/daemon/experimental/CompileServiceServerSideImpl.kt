@@ -156,7 +156,7 @@ class CompileServiceServerSideImpl(
         val activeTaskIds = arrayListOf<Int>()
         val waitingTasks = arrayListOf<CompileServiceTask>()
         fun tryInvokeShutdown(reason: String) {
-            println("tryInvokeShutdown | reason = $reason | tasksCnt = ${activeTaskIds.size} | shutdownTask = ${shutdownTask != null}")
+            println("tryInvokeShutdown | reason = $reason | tasks = ${activeTaskIds} | shutdownTask = ${shutdownTask != null}")
             if (activeTaskIds.isEmpty()) {
                 shutdownTask?.let { task ->
                     isWriteLocked = true
@@ -415,7 +415,6 @@ class CompileServiceServerSideImpl(
 
     override suspend fun getDaemonJVMOptions(): CompileService.CallResult<DaemonJVMOptions> = ifAlive(info = "getDaemonJVMOptions") {
         log.info("getDaemonJVMOptions: $daemonJVMOptions")// + daemonJVMOptions.mappers.flatMap { it.toArgs("-") })
-
         CompileService.CallResult.Good(daemonJVMOptions)
     }
 
@@ -485,7 +484,7 @@ class CompileServiceServerSideImpl(
             scheduleShutdownImpl(graceful)
         }
 
-    private suspend fun scheduleShutdownImpl(graceful: Boolean): CompileService.CallResult<Boolean> {
+    private fun scheduleShutdownImpl(graceful: Boolean): CompileService.CallResult<Boolean> {
         val res = when {
             graceful -> gracefulShutdown(true)
             else -> {
@@ -977,7 +976,7 @@ class CompileServiceServerSideImpl(
             currentSessionId == state.sessions.lastSessionId
         ) {
             log.info("currentCompilationsCount == compilationsCounter.get()")
-            runBlocking(Unconfined) {
+            async {
                 ifAliveExclusiveUnit(minAliveness = Aliveness.LastSession, info = "initiate elections - shutdown") {
                     log.info("Execute delayed shutdown!!!")
                     log.fine("Execute delayed shutdown")
@@ -1020,7 +1019,7 @@ class CompileServiceServerSideImpl(
     }
 
     private fun gracefulShutdownImpl() {
-        runBlocking(Unconfined) {
+        async {
             ifAliveExclusiveUnit(minAliveness = Aliveness.LastSession, info = "gracefulShutdown") {
                 shutdownIfIdle()
             }

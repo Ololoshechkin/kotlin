@@ -1,12 +1,8 @@
 package org.jetbrains.kotlin.daemon.common.experimental.socketInfrastructure
 
 import io.ktor.network.sockets.Socket
-import kotlinx.coroutines.experimental.CompletableDeferred
-import kotlinx.coroutines.experimental.channels.Channel
-import kotlinx.coroutines.experimental.channels.SendChannel
-import kotlinx.coroutines.experimental.channels.actor
-import kotlinx.coroutines.experimental.channels.consumeEach
-import kotlinx.coroutines.experimental.runBlocking
+import kotlinx.coroutines.experimental.*
+import kotlinx.coroutines.experimental.channels.*
 import org.jetbrains.kotlin.daemon.common.experimental.KEEPALIVE_PERIOD
 import org.jetbrains.kotlin.daemon.common.experimental.LoopbackNetworkInterface
 import java.beans.Transient
@@ -15,8 +11,8 @@ import java.io.ObjectInputStream
 import java.io.ObjectOutputStream
 import java.io.Serializable
 import java.util.*
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.logging.Logger
-import kotlin.concurrent.schedule
 
 
 interface Client<ServerType : ServerBase> : Serializable, AutoCloseable {
@@ -42,7 +38,7 @@ abstract class DefaultAuthorizableClient<ServerType : ServerBase>(
 ) : Client<ServerType> {
 
     val log: Logger
-        @Transient get() = Logger.getLogger("default client($serverPort)").also { it.setUseParentHandlers(false); }
+        @Transient get() = Logger.getLogger("default client($serverPort)")//.also { it.setUseParentHandlers(false); }
 
     @kotlin.jvm.Transient
     lateinit var input: ByteReadChannelWrapper
@@ -73,12 +69,14 @@ abstract class DefaultAuthorizableClient<ServerType : ServerBase>(
 
     private interface ReadActorQuery
     private data class ExpectReplyQuery(val messageId: Int, val result: CompletableDeferred<MessageReply<*>>) : ReadActorQuery
-    private class ReceiveReplyQuery : ReadActorQuery
-    private class StopAllRequests : ReadActorQuery
+    private class ReceiveReplyQuery(val reply: MessageReply<*>) : ReadActorQuery
 
     private interface WriteActorQuery
     private data class SendNoreplyMessageQuery(val message: Server.AnyMessage<*>) : WriteActorQuery
     private data class SendMessageQuery(val message: Server.AnyMessage<*>, val messageId: CompletableDeferred<Any>) : WriteActorQuery
+
+    private class StopAllRequests : ReadActorQuery, WriteActorQuery
+
 
 //    @kotlin.jvm.Transient
 //    private lateinit var intermediateActor: SendChannel<ReceiveReplyQuery>
@@ -113,7 +111,11 @@ abstract class DefaultAuthorizableClient<ServerType : ServerBase>(
         log.info("readMessage with_id$id")
         val result = CompletableDeferred<MessageReply<*>>()
         log.info("result : $result with_id$id")
-        readActor.send(ExpectReplyQuery(id, result))
+        try {
+            readActor.send(ExpectReplyQuery(id, result))
+        } catch (e: ClosedSendChannelException) {
+            throw IOException("failed to read message (channel was closed)")
+        }
         log.info("sent with_id$id")
         val actualResult = result.await().reply
         log.info("actualResult : $actualResult with_id$id")
@@ -124,6 +126,7 @@ abstract class DefaultAuthorizableClient<ServerType : ServerBase>(
     }
 
     override suspend fun connectToServer() {
+
         writeActor = actor(capacity = Channel.UNLIMITED) {
             var firstFreeMessageId = 0
             consumeEach { query ->
@@ -142,18 +145,52 @@ abstract class DefaultAuthorizableClient<ServerType : ServerBase>(
                         log.info_and_print("[${log.name}] : sending noreply : ${query.message}")
                         output.writeObject(query.message.withId(-1))
                     }
+                    is StopAllRequests -> {
+                        channel.close()
+                    }
                 }
             }
         }
+
+        class NextObjectQuery
+        val nextObjectQuery = NextObjectQuery()
+        val objectReaderActor = actor<NextObjectQuery>(capacity = Channel.UNLIMITED) {
+            consumeEach {
+                try {
+                    val reply = input.nextObject().await()
+                    if (reply is Server.ServerDownMessage<*>) {
+                        throw IOException("connection closed by server")
+                    } else if (reply !is MessageReply<*>) {
+                        log.info_and_print("replyAny as MessageReply<*> - failed!")
+                        throw IOException("contrafact message (expected MessageReply<*>)")
+                    } else {
+                        log.info_and_print("[${log.name}] : received reply ${reply.reply} (id = ${reply.messageId})}")
+                        readActor.send(ReceiveReplyQuery(reply))
+                    }
+                } catch (e: IOException) {
+                    readActor.send(StopAllRequests())
+                }
+            }
+        }
+
         readActor = actor(capacity = Channel.UNLIMITED) {
             val receivedMessages = hashMapOf<Int, MessageReply<*>>()
             val expectedMessages = hashMapOf<Int, ExpectReplyQuery>()
+
             fun broadcastIOException(e: IOException) {
                 channel.close()
                 expectedMessages.forEach { id, deferred ->
                     deferred.result.complete(MessageReply(id, e))
                 }
+                expectedMessages.clear()
+                receivedMessages.clear()
             }
+
+//            async(newSingleThreadContext("readerThread")) {
+//                while (true) {
+//
+//                }
+//            }
 
             consumeEach { query ->
                 when (query) {
@@ -163,39 +200,29 @@ abstract class DefaultAuthorizableClient<ServerType : ServerBase>(
                             query.result.complete(reply)
                         } ?: expectedMessages.put(query.messageId, query).also {
                             log.info_and_print("[${log.name}] : intermediateActor.send(ReceiveReplyQuery())")
-                            channel.send(ReceiveReplyQuery())
+                            objectReaderActor.send(nextObjectQuery)
                         }
                     }
                     is ReceiveReplyQuery -> {
+                        val reply = query.reply
                         log.info_and_print("[${log.name}] : got ReceiveReplyQuery")
-                        try {
-                            val replyAny = input.nextObject().await()
-                            if (replyAny !is MessageReply<*>) {
-                                log.info_and_print("replyAny as MessageReply<*> - failed!")
-                            } else {
-                                val reply = replyAny
-                                log.info_and_print("[${log.name}] : received reply ${replyAny.reply} (id = ${replyAny.messageId})}")
-                                expectedMessages[reply.messageId]?.also { expectedMsg ->
-                                    expectedMsg.result.complete(reply)
-                                } ?: receivedMessages.put(reply.messageId, reply).also {
-                                    log.info_and_print("[${log.name}] : intermediateActor.send(ReceiveReplyQuery())")
-//                                    intermediateActor.send(ReceiveReplyQuery())
-                                    channel.send(ReceiveReplyQuery())
-                                }
-                            }
-                        } catch (e: IOException) {
-                            broadcastIOException(e)
+                        expectedMessages[reply.messageId]?.also { expectedMsg ->
+                            expectedMsg.result.complete(reply)
+                        } ?: receivedMessages.put(reply.messageId, reply).also {
+                            log.info_and_print("[${log.name}] : intermediateActor.send(ReceiveReplyQuery())")
+                            objectReaderActor.send(nextObjectQuery)
                         }
                     }
                     is StopAllRequests -> {
-                        receivedMessages.clear()
-                        expectedMessages.forEach {
-                            it.value.result.complete(MessageReply(it.key, IOException("KeepAlive failed")))
-                        }
+                        writeActor.send(StopAllRequests())
+                        broadcastIOException(IOException("KeepAlive failed"))
                     }
                 }
             }
         }
+
+
+
         log.info_and_print("connectToServer (port = $serverPort | host = $serverHost)")
         try {
             socket = LoopbackNetworkInterface.clientLoopbackSocketFactoryKtor.createSocket(
@@ -222,25 +249,59 @@ abstract class DefaultAuthorizableClient<ServerType : ServerBase>(
 //                close()
 //                throw ConnectionResetException("failed to establish connection with server (authorization failed)")
 //            }
-            startKeepAlives()
+
+//            startKeepAlives()
         }
 
     }
 
     private fun startKeepAlives() {
-        val timer = Timer()
-        timer.schedule(delay = 10L, period = KEEPALIVE_PERIOD) {
-            if (!checkServerAliveness()) {
-                timer.cancel()
-            }
-        }
-    }
+        val keepAliveMessage = Server.KeepAliveMessage<ServerType>()
+        var serverAlive = AtomicBoolean(true)
 
-    private fun checkServerAliveness(): Boolean = runBlocking {
-        val id = sendMessage(Server.KeepAliveMessage())
-        runWithTimeout(timeout = KEEPALIVE_PERIOD / 2) {
-            readMessage<Server.KeepAliveAcknowledgement<ServerType>>(id)
-        }?.let { true } ?: readActor.send(StopAllRequests()).let { false }
+        val stopKeepAlives: suspend () -> Unit = {
+            sendMessage(Server.EndConnectionMessage())
+            readActor.send(StopAllRequests())
+            serverAlive.set(false)
+        }
+
+        async(newSingleThreadContext("keep_alive")) {
+//            println("[$serverPort] _____START______")
+            delay(KEEPALIVE_PERIOD * 4)
+            while (serverAlive.get()) {
+                runWithTimeout(timeout = KEEPALIVE_PERIOD / 2) {
+                    val id = sendMessage(keepAliveMessage)
+                    try {
+                        readMessage<Server.KeepAliveAcknowledgement<ServerType>>(id).also {
+//                            println("[$serverPort] received KeepAlive => OK")
+                        }
+                    } catch (e: IOException) {
+//                        println("[$serverPort] IOException => StopAllRequests")
+                        stopKeepAlives()
+                    }
+                } ?: stopKeepAlives().let {
+//                    println("[$serverPort] timeout => StopAllRequests")
+                }
+                delay(KEEPALIVE_PERIOD)
+            }
+//            println("[$serverPort] _____FINISH______")
+        }
+//        timer.schedule(delay = KEEPALIVE_PERIOD * 6, period = KEEPALIVE_PERIOD) {
+//            if (!checkServerAliveness(
+//                    keepAliveMessage,
+//                    keepAliveContext,
+//                    stopKeepAlives = {
+//                        async(keepAliveContext) {
+//                            sendMessage(Server.EndConnectionMessage())
+//                            readActor.send(StopAllRequests())
+//                            timer.cancel()
+//                            timer.purge()
+//                        }
+//                    }
+//                )) {
+//                println("[$serverPort] timer.cancel()!")
+//            }
+//        }
     }
 
     @Throws(ClassNotFoundException::class, IOException::class)
