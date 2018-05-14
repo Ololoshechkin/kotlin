@@ -831,7 +831,6 @@ class CompileServiceServerSideImpl(
     private fun periodicSeldomCheck() {
         async {
             ifAliveUnit(minAliveness = Aliveness.Alive, info = "periodicSeldomCheck") {
-
                 // compiler changed (seldom check) - shutdown
                 if (classpathWatcher.isChanged) {
                     log.info("Compiler changed.")
@@ -854,7 +853,7 @@ class CompileServiceServerSideImpl(
                     filter = { _, p -> p != port },
                     report = { _, msg -> log.info(msg) },
                     useRMI = false
-                ).await()
+                )
                 log.info("aliveWithOpts : ${aliveWithOpts.map { it.daemon.javaClass.name }}")
                 val comparator = compareByDescending<DaemonWithMetadataAsync, DaemonJVMOptions>(
                     DaemonJVMOptionsMemoryComparator(),
