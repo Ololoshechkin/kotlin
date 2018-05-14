@@ -150,22 +150,24 @@ private suspend fun tryConnectToDaemonBySockets(
     file: File,
     report: (DaemonReportCategory, String) -> Unit
 ): CompileServiceClientSide? {
-    try {
-        log.info("tryConnectToDaemonBySockets(port = $port)")
-        val daemon = CompileServiceClientSideImpl(
-            port,
-            LoopbackNetworkInterface.loopbackInetAddressName,
-            file
-        )
-        log.info("daemon($port) = $daemon")
-        log.info("daemon($port) connecting to server...")
-        daemon.connectToServer()
-        log.info("OK - daemon($port) connected to server!!!")
-        return daemon
-    } catch (e: Throwable) {
-        report(DaemonReportCategory.INFO, "kcannot find or connect to socket")
+    return CompileServiceClientSideImpl(
+        port,
+        LoopbackNetworkInterface.loopbackInetAddressName,
+        file
+    ).let { daemon ->
+        try {
+            log.info("tryConnectToDaemonBySockets(port = $port)")
+            log.info("daemon($port) = $daemon")
+            log.info("daemon($port) connecting to server...")
+            daemon.connectToServer()
+            log.info("OK - daemon($port) connected to server!!!")
+            daemon
+        } catch (e: Throwable) {
+            report(DaemonReportCategory.INFO, "kcannot find or connect to socket")
+            daemon.close()
+            null
+        }
     }
-    return null
 }
 
 private suspend fun tryConnectToDaemonAsync(
@@ -177,7 +179,4 @@ private suspend fun tryConnectToDaemonAsync(
 ): CompileServiceClientSide? =
     useSockets.takeIf { it }?.let { tryConnectToDaemonBySockets(port, file, report) }
             ?: (useRMI.takeIf { it }?.let { tryConnectToDaemonByRMI(port, report) })
-
-private const val validFlagFileKeywordChars = "abcdefghijklmnopqrstuvwxyz0123456789-_"
-
 
