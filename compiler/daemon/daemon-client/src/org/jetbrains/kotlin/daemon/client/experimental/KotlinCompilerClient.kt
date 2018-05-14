@@ -389,6 +389,8 @@ object KotlinCompilerClient {
                     null to e
                 } catch (e: RuntimeException) {
                     null to e
+                } catch (e: ClosedChannelException) {
+                    null to e
                 }
 
                 if (res != null) return res
@@ -425,7 +427,7 @@ object KotlinCompilerClient {
         val timestampMarker = createTempFile("kotlin-daemon-client-tsmarker", directory = registryDir)
         val aliveWithMetadata = try {
             log.info("walkDaemonsAsync...")
-            walkDaemonsAsync(registryDir, compilerId, timestampMarker, report = report).await().also {
+            walkDaemonsAsync(registryDir, compilerId, timestampMarker, report = report).also {
                 log.info(
                     "daemons (${it.size}): ${it.map { "daemon(params : " + it.jvmOptions.jvmParams.joinToString(", ") + ")" }.joinToString(
                         ", ", "[", "]"
