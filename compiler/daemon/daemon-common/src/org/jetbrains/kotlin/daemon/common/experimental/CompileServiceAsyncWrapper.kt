@@ -5,7 +5,6 @@
 
 package org.jetbrains.kotlin.daemon.common.experimental
 
-import kotlinx.coroutines.experimental.async
 import org.jetbrains.kotlin.cli.common.repl.ReplCodeLine
 import org.jetbrains.kotlin.daemon.common.CompilationOptions
 import org.jetbrains.kotlin.daemon.common.CompileService
@@ -18,6 +17,12 @@ class CompileServiceAsyncWrapper(
     val rmiCompileService: CompileService,
     override val serverPort: Int
 ) : CompileServiceClientSide, Client<CompileServiceServerSide> by DefaultClientRMIWrapper() {
+
+    override suspend fun classesFqNamesByFiles(
+        sessionId: Int,
+        sourceFiles: Set<File>
+    ): CompileService.CallResult<Set<String>> =
+        rmiCompileService.classesFqNamesByFiles(sessionId, sourceFiles)
 
     override suspend fun compile(
         sessionId: Int,

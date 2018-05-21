@@ -51,6 +51,7 @@ import org.jetbrains.kotlin.daemon.report.experimental.DaemonMessageReporterAsyn
 import org.jetbrains.kotlin.daemon.report.experimental.RemoteICReporterAsync
 import org.jetbrains.kotlin.incremental.*
 import org.jetbrains.kotlin.incremental.components.LookupTracker
+import org.jetbrains.kotlin.incremental.parsing.classesFqNames
 import org.jetbrains.kotlin.load.kotlin.incremental.components.IncrementalCompilationComponents
 import org.jetbrains.kotlin.modules.Module
 import org.jetbrains.kotlin.progress.experimental.CompilationCanceledStatus
@@ -666,7 +667,8 @@ class CompileServiceServerSideImpl(
             artifactChanges, changesRegistry,
             buildHistoryFile = incrementalCompilationOptions.resultDifferenceFile,
             friendBuildHistoryFile = incrementalCompilationOptions.friendDifferenceFile,
-            usePreciseJavaTracking = incrementalCompilationOptions.usePreciseJavaTracking
+            usePreciseJavaTracking = incrementalCompilationOptions.usePreciseJavaTracking,
+            localStateDirs = incrementalCompilationOptions.localStateDirs
         )
         return compiler.compile(allKotlinFiles, k2jvmArgs, compilerMessageCollector, changedFiles)
     }
@@ -729,6 +731,16 @@ class CompileServiceServerSideImpl(
                 withValidReplState(replStateId) { state ->
                     compile(state, codeLine)
                 }
+            }
+        }
+
+    override suspend fun classesFqNamesByFiles(
+        sessionId: Int,
+        sourceFiles: Set<File>
+    ): CompileService.CallResult<Set<String>> =
+        ifAlive {
+            withValidClientOrSessionProxy(sessionId) {
+                CompileService.CallResult.Good(classesFqNames(sourceFiles))
             }
         }
 

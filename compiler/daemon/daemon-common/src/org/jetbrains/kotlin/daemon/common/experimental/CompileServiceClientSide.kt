@@ -17,7 +17,6 @@ import org.jetbrains.kotlin.daemon.common.*
 import org.jetbrains.kotlin.daemon.common.CompileService.CallResult
 import org.jetbrains.kotlin.daemon.common.experimental.socketInfrastructure.*
 import java.io.File
-import java.util.concurrent.TimeUnit
 import java.util.logging.Logger
 
 interface CompileServiceClientSide : CompileServiceAsync, Client<CompileServiceServerSide> {
@@ -68,11 +67,11 @@ class CompileServiceClientSideImpl(
                         delay(KEEPALIVE_PERIOD - deltaTime())
                     }
                     runWithTimeout(timeout = KEEPALIVE_PERIOD / 2) {
-//                        println("[$this] sent keepalive")
+                        //                        println("[$this] sent keepalive")
                         val id = sendMessage(keepAliveMessage)
                         readMessage<Server.KeepAliveAcknowledgement<*>>(id)
                     } ?: if (!keepAliveSuccess()) readActor.send(StopAllRequests()).also {
-//                        println("[$this] got keepalive")
+                        //                        println("[$this] got keepalive")
                     }
                 }
             }
@@ -230,6 +229,14 @@ class CompileServiceClientSideImpl(
         return readMessage(id)
     }
 
+    override suspend fun classesFqNamesByFiles(
+        sessionId: Int,
+        sourceFiles: Set<File>
+    ): CallResult<Set<String>> {
+        val id = sendMessage(ClassesFqNamesByFilesMessage(sessionId, sourceFiles))
+        return readMessage(id)
+    }
+
     override suspend fun replCompile(
         sessionId: Int,
         replStateId: Int,
@@ -244,6 +251,7 @@ class CompileServiceClientSideImpl(
         )
         return readMessage(id)
     }
+
 
     // Query messages:
 
@@ -395,6 +403,14 @@ class CompileServiceClientSideImpl(
     ) : Server.Message<CompileServiceServerSide>() {
         override suspend fun processImpl(server: CompileServiceServerSide, sendReply: (Any?) -> Unit) =
             sendReply(server.replCompile(sessionId, replStateId, codeLine))
+    }
+
+    class ClassesFqNamesByFilesMessage(
+        val sessionId: Int,
+        val sourceFiles: Set<File>
+    ): Server.Message<CompileServiceServerSide>() {
+        override suspend fun processImpl(server: CompileServiceServerSide, sendReply: (Any?) -> Unit) =
+                sendReply(server.classesFqNamesByFiles(sessionId, sourceFiles))
     }
 
 }

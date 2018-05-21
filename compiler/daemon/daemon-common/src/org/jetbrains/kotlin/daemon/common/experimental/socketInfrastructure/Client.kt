@@ -6,7 +6,6 @@ import kotlinx.coroutines.experimental.channels.*
 import kotlinx.coroutines.experimental.runBlocking
 import org.jetbrains.kotlin.daemon.common.experimental.LoopbackNetworkInterface
 import sun.net.ConnectionResetException
-import java.beans.Transient
 import java.io.IOException
 import java.io.ObjectInputStream
 import java.io.ObjectOutputStream
@@ -37,7 +36,7 @@ abstract class DefaultAuthorizableClient<ServerType : ServerBase>(
 ) : Client<ServerType> {
 
     val log: Logger
-        @Transient get() = Logger.getLogger("default client($serverPort)")//.also { it.setUseParentHandlers(false); }
+        get() = Logger.getLogger("default client($serverPort)")//.also { it.setUseParentHandlers(false); }
 
     @kotlin.jvm.Transient
     lateinit var input: ByteReadChannelWrapper
@@ -113,56 +112,63 @@ abstract class DefaultAuthorizableClient<ServerType : ServerBase>(
         return actualResult as T
     }
 
-    override suspend fun connectToServer() {
-
-        writeActor = actor(capacity = Channel.UNLIMITED) {
-            var firstFreeMessageId = 0
-            consumeEach { query ->
-                when (query) {
-                    is SendMessageQuery -> {
-                        val id = firstFreeMessageId++
-                        log.info_and_print("[${log.name}, ${this@DefaultAuthorizableClient}] : sending message : ${query.message} (predicted id = ${id})")
-                        try {
-                            output.writeObject(query.message.withId(id))
-                            query.messageId.complete(id)
-                        } catch (e: IOException) {
-                            query.messageId.complete(e)
-                        }
+    private fun createWriteActor(): SendChannel<WriteActorQuery> = actor(capacity = Channel.UNLIMITED) {
+        var firstFreeMessageId = 0
+        consumeEach { query ->
+            when (query) {
+                is SendMessageQuery -> {
+                    val id = firstFreeMessageId++
+                    log.info_and_print("[${log.name}, ${this@DefaultAuthorizableClient}] : sending message : ${query.message} (predicted id = ${id})")
+                    try {
+                        output.writeObject(query.message.withId(id))
+                        query.messageId.complete(id)
+                    } catch (e: IOException) {
+                        query.messageId.complete(e)
                     }
-                    is SendNoreplyMessageQuery -> {
-                        log.info_and_print("[${log.name}] : sending noreply : ${query.message}")
-                        output.writeObject(query.message.withId(-1))
-                    }
-                    is StopAllRequests -> {
-                        channel.close()
-                    }
+                }
+                is SendNoreplyMessageQuery -> {
+                    log.info_and_print("[${log.name}] : sending noreply : ${query.message}")
+                    output.writeObject(query.message.withId(-1))
+                }
+                is StopAllRequests -> {
+                    channel.close()
                 }
             }
         }
+    }
 
-        class NextObjectQuery
+    private class NextObjectQuery
+
+    private suspend fun processNextObjQuery() {
+        try {
+            val reply = input.nextObject()
+            if (reply is Server.ServerDownMessage<*>) {
+                throw IOException("connection closed by server")
+            } else if (reply !is MessageReply<*>) {
+                log.info_and_print("replyAny as MessageReply<*> - failed!")
+                throw IOException("contrafact message (expected MessageReply<*>)")
+            } else {
+                log.info_and_print("[${log.name}] : received reply ${reply.reply} (id = ${reply.messageId})}")
+                readActor.send(ReceiveReplyQuery(reply))
+            }
+        } catch (e: IOException) {
+            readActor.send(StopAllRequests())
+        }
+    }
+
+    private fun createObjectReaderActor(): SendChannel<NextObjectQuery> = actor(capacity = Channel.UNLIMITED) {
+        consumeEach { query ->
+            processNextObjQuery()
+        }
+    }
+
+    private fun createReadActor(): SendChannel<ReadActorQuery> {
+
+        val objectReaderActor = createObjectReaderActor()
 
         val nextObjectQuery = NextObjectQuery()
-        val objectReaderActor = actor<NextObjectQuery>(capacity = Channel.UNLIMITED) {
-            consumeEach {
-                try {
-                    val reply = input.nextObject()
-                    if (reply is Server.ServerDownMessage<*>) {
-                        throw IOException("connection closed by server")
-                    } else if (reply !is MessageReply<*>) {
-                        log.info_and_print("replyAny as MessageReply<*> - failed!")
-                        throw IOException("contrafact message (expected MessageReply<*>)")
-                    } else {
-                        log.info_and_print("[${log.name}] : received reply ${reply.reply} (id = ${reply.messageId})}")
-                        readActor.send(ReceiveReplyQuery(reply))
-                    }
-                } catch (e: IOException) {
-                    readActor.send(StopAllRequests())
-                }
-            }
-        }
 
-        readActor = actor(capacity = Channel.UNLIMITED) {
+        return actor(capacity = Channel.UNLIMITED) {
             val receivedMessages = hashMapOf<Int, MessageReply<*>>()
             val expectedMessages = hashMapOf<Int, ExpectReplyQuery>()
 
@@ -204,8 +210,13 @@ abstract class DefaultAuthorizableClient<ServerType : ServerBase>(
                 }
             }
         }
+    }
 
+    override suspend fun connectToServer() {
 
+        writeActor = createWriteActor()
+
+        readActor = createReadActor()
 
         log.info_and_print("connectToServer (port = $serverPort | host = $serverHost)")
         try {

@@ -231,6 +231,13 @@ class CompileServiceRMIWrapper(val server: CompileServiceServerSide, daemonOptio
         runFile.deleteOnExit()
     }
 
+    override fun classesFqNamesByFiles(
+        sessionId: Int,
+        sourceFiles: Set<File>
+    ): CompileService.CallResult<Set<String>> = runBlocking {
+        server.classesFqNamesByFiles(sessionId, sourceFiles)
+    }
+
 }
 
 fun CompileServiceServerSide.toRMIServer(daemonOptions: DaemonOptions, compilerId: CompilerId) =

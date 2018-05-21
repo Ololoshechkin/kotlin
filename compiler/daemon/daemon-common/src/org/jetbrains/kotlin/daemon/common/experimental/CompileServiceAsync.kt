@@ -5,7 +5,6 @@
 
 package org.jetbrains.kotlin.daemon.common.experimental
 
-import kotlinx.coroutines.experimental.Deferred
 import org.jetbrains.kotlin.cli.common.repl.ReplCheckResult
 import org.jetbrains.kotlin.cli.common.repl.ReplCodeLine
 import org.jetbrains.kotlin.cli.common.repl.ReplCompileResult
@@ -72,5 +71,9 @@ interface CompileServiceAsync {
         replStateId: Int,
         codeLine: ReplCodeLine
     ): CompileService.CallResult<ReplCompileResult>
+
+    suspend fun classesFqNamesByFiles(
+        sessionId: Int, sourceFiles: Set<File>
+    ): CompileService.CallResult<Set<String>>
 
 }
