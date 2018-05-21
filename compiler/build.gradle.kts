@@ -220,3 +220,11 @@ codegenTest(target = 10, jvm = 10) {
 val generateTests by generator("org.jetbrains.kotlin.generators.tests.GenerateCompilerTestsKt")
 
 testsJar()
+
+allprojects {
+    tasks.withType<KotlinCompile<*>> {
+        kotlinOptions {
+            freeCompilerArgs -= ("-Xnew-inference")
+        }
+    }
+}

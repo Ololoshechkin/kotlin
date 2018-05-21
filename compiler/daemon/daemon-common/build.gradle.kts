@@ -1,4 +1,5 @@
 import com.sun.javafx.scene.CameraHelper.project
+import org.jetbrains.kotlin.gradle.dsl.KotlinCompile
 
 plugins {
     kotlin("jvm")
@@ -29,4 +30,12 @@ dependencies {
 sourceSets {
     "main" { projectDefault() }
     "test" {}
+}
+
+allprojects {
+    tasks.withType<KotlinCompile<*>> {
+        kotlinOptions {
+            freeCompilerArgs -= ("-Xnew-inference")
+        }
+    }
 }

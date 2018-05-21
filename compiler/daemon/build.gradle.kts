@@ -1,6 +1,7 @@
 import com.sun.javafx.scene.CameraHelper.project
 import org.gradle.internal.impldep.org.junit.experimental.categories.Categories.CategoryFilter.exclude
 import org.jetbrains.kotlin.gradle.dsl.Coroutines
+import org.jetbrains.kotlin.gradle.dsl.KotlinCompile
 
 plugins {
     kotlin("jvm")
@@ -33,4 +34,13 @@ sourceSets {
 }
 kotlin {
     experimental.coroutines = Coroutines.ENABLE
+}
+
+
+allprojects {
+    tasks.withType<KotlinCompile<*>> {
+        kotlinOptions {
+            freeCompilerArgs -= ("-Xnew-inference")
+        }
+    }
 }
