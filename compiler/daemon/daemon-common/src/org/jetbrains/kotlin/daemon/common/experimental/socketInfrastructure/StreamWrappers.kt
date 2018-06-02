@@ -14,15 +14,13 @@ import kotlinx.io.core.readBytes
 import java.io.*
 import java.util.logging.Logger
 
-private val DEFAULT_BYTE_ARRAY = byteArrayOf(0, 0, 0, 0)
-
 class ByteReadChannelWrapper(readChannel: ByteReadChannel, private val log: Logger) {
 
-    private interface ReadQuery
+    private sealed class ReadQuery {
+        class BytesQuery(val bytes: CompletableDeferred<ByteArray>) : ReadQuery()
+        class SerObjectQuery(val obj: CompletableDeferred<Any?>) : ReadQuery()
+    }
 
-    private open class BytesQuery(val bytes: CompletableDeferred<ByteArray>) : ReadQuery
-
-    private class SerObjectQuery(val obj: CompletableDeferred<Any?>) : ReadQuery
 
     suspend fun readLength(readChannel: ByteReadChannel) =
         if (readChannel.isClosedForRead)
@@ -50,21 +48,18 @@ class ByteReadChannelWrapper(readChannel: ByteReadChannel, private val log: Logg
             if (!readChannel.isClosedForRead) {
                 readLength(readChannel)?.let { messageLength ->
                     when (message) {
-                        is BytesQuery -> message.bytes.complete(
+                        is ReadQuery.BytesQuery -> message.bytes.complete(
                             readChannel.readPacket(
                                 getLength(messageLength)
                             ).readBytes()
                         )
 
-                        is SerObjectQuery -> message.obj.complete(
+                        is ReadQuery.SerObjectQuery -> message.obj.complete(
                             getObject(
                                 getLength(messageLength),
                                 { len -> readPacket(len, readChannel) }
                             )
                         )
-
-                        else -> {
-                        }
                     }
                 }
             } else {
@@ -79,21 +74,13 @@ class ByteReadChannelWrapper(readChannel: ByteReadChannel, private val log: Logg
                 (0xFF and b3 shl 8) or (0xFF and b4)).also { log.info("   $it") }
     }
 
-    /** reads exactly <tt>length</tt>  bytes.
-     * after deafault timeout returns <tt>DEFAULT_BYTE_ARRAY</tt> */
-    suspend fun readBytes(length: Int): ByteArray = runWithTimeout {
-        val expectedBytes = CompletableDeferred<ByteArray>()
-//        readActor.send(GivenLengthBytesQuery(length, expectedBytes))
-        expectedBytes.await()
-    } ?: DEFAULT_BYTE_ARRAY
-
     /** first reads <t>length</t> token (4 bytes) and then -- reads <t>length</t> bytes.
      * after deafault timeout returns <tt>DEFAULT_BYTE_ARRAY</tt> */
     suspend fun nextBytes(): ByteArray = runWithTimeout {
         val expectedBytes = CompletableDeferred<ByteArray>()
-        readActor.send(BytesQuery(expectedBytes))
+        readActor.send(ReadQuery.BytesQuery(expectedBytes))
         expectedBytes.await()
-    } ?: DEFAULT_BYTE_ARRAY
+    }
 
     private suspend fun getObject(length: Int, readPacket: suspend (Int) -> ByteArray?): Any? =
         if (length >= 0) {
@@ -117,7 +104,7 @@ class ByteReadChannelWrapper(readChannel: ByteReadChannel, private val log: Logg
     /** first reads <t>length</t> token (4 bytes), then reads <t>length</t> bytes and returns deserialized object */
     suspend fun nextObject(): Any? {
         val obj = CompletableDeferred<Any?>()
-        readActor.send(SerObjectQuery(obj))
+        readActor.send(ReadQuery.SerObjectQuery(obj))
         val result = obj.await()
         if (result is Server.ServerDownMessage<*>) {
             throw IOException("connection closed by server")

@@ -106,12 +106,15 @@ class CompileServiceServerSideImpl(
 
     }
 
-    override suspend fun securityCheck(clientInputChannel: ByteReadChannelWrapper): Boolean = runWithTimeout {
-        getSignatureAndVerify(clientInputChannel, securityData.token, securityData.publicKey)
-    } ?: false
+    override suspend fun securityCheck(clientInputChannel: ByteReadChannelWrapper) = runWithTimeout {
+        if (!getSignatureAndVerify(clientInputChannel, securityData.token, securityData.publicKey)) {
+            throw SecurityCheckException("invalid token received")
+        }
+    }
 
-    override suspend fun serverHandshake(input: ByteReadChannelWrapper, output: ByteWriteChannelWrapper, log: Logger): Boolean {
-        return tryAcquireHandshakeMessage(input, log) && trySendHandshakeMessage(output, log)
+    override suspend fun serverHandshake(input: ByteReadChannelWrapper, output: ByteWriteChannelWrapper, log: Logger) {
+        tryAcquireHandshakeMessage(input, log)
+        trySendHandshakeMessage(output, log)
     }
 
     interface CompileServiceTask

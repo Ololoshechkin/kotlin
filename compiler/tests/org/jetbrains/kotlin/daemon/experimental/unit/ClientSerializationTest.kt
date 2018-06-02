@@ -61,7 +61,7 @@ class ClientSerializationTest : KotlinIntegrationTestBase() {
                     it.readObject() as T
                 }
             }
-            connected = runWithTimeout { clientAwait.await() } ?: false
+            connected = runWithTimeout { clientAwait.await() }
         }
         assert(connected)
         log.info("read")

@@ -131,7 +131,7 @@ class ConnectionsTest : KotlinIntegrationTestBase() {
 
     }
 
-    private fun runNewServer(): Deferred<Unit> =
+    private fun runNewServer() =
         port.let { serverPort ->
             CompileServiceServerSideImpl(
                 serverPort,

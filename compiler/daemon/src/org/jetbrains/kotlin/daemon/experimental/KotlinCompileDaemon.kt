@@ -192,7 +192,7 @@ object KotlinCompileDaemon {
                     })
                 log.info("_COMPILE_SERVICE_STARTED")
                 log.info("_compile_service_RUNNING_SEERVER")
-                serverRun = compilerService.runServer()
+                compilerService.runServer()
                 log.info("_compile_service_SEERVER_IS_RUNNING")
 
 
@@ -215,7 +215,6 @@ object KotlinCompileDaemon {
                 throw e
             }
             log.info("awaiting")
-            serverRun.await()
             log.info("downing")
         }
     }

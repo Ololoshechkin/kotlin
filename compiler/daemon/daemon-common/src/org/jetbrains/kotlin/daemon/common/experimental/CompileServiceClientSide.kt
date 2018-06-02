@@ -18,6 +18,7 @@ import org.jetbrains.kotlin.daemon.common.CompileService.CallResult
 import org.jetbrains.kotlin.daemon.common.experimental.socketInfrastructure.*
 import java.io.File
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 import java.util.logging.Logger
 
 interface CompileServiceClientSide : CompileServiceAsync, Client<CompileServiceServerSide> {
@@ -44,16 +45,16 @@ class CompileServiceClientSideImpl(
 
         private fun keepAliveSuccess() = deltaTime() < KEEPALIVE_PERIOD
 
-        override suspend fun authorizeOnServer(serverOutputChannel: ByteWriteChannelWrapper): Boolean =
+        override suspend fun authorizeOnServer(serverOutputChannel: ByteWriteChannelWrapper) =
             runWithTimeout {
                 log.info("in authoriseOnServer(serverFile=$serverFile)")
                 val signature = serverFile.inputStream().use(::readTokenKeyPairAndSign)
                 sendSignature(serverOutputChannel, signature)
-                true
-            } ?: false
+            }
 
-        override suspend fun clientHandshake(input: ByteReadChannelWrapper, output: ByteWriteChannelWrapper, log: Logger): Boolean {
-            return trySendHandshakeMessage(output, log) && tryAcquireHandshakeMessage(input, log)
+        override suspend fun clientHandshake(input: ByteReadChannelWrapper, output: ByteWriteChannelWrapper, log: Logger) {
+            trySendHandshakeMessage(output, log)
+            tryAcquireHandshakeMessage(input, log)
         }
 
         override suspend fun startKeepAlives() {
@@ -67,12 +68,17 @@ class CompileServiceClientSideImpl(
 //                        println("[$this] remained ${KEEPALIVE_PERIOD - deltaTime()}")
                         delay(KEEPALIVE_PERIOD - deltaTime())
                     }
-                    runWithTimeout(timeout = KEEPALIVE_PERIOD / 2) {
-//                        println("[$this] sent keepalive")
-                        val id = sendMessage(keepAliveMessage)
-                        readMessage<Server.KeepAliveAcknowledgement<*>>(id)
-                    } ?: if (!keepAliveSuccess()) readActor.send(StopAllRequests()).also {
-//                        println("[$this] got keepalive")
+                    try {
+                        runWithTimeout(timeout = KEEPALIVE_PERIOD / 2) {
+                            //                        println("[$this] sent keepalive")
+                            val id = sendMessage(keepAliveMessage)
+                            readMessage<Server.KeepAliveAcknowledgement<*>>(id)
+                        }
+                    } catch (e: TimeoutException) {
+                        if (!keepAliveSuccess()) readActor.send(StopAllRequests())
+//                            .also {
+//                                println("[$this] got keepalive")
+//                            }
                     }
                 }
             }

@@ -5,7 +5,6 @@ import kotlinx.coroutines.experimental.CompletableDeferred
 import kotlinx.coroutines.experimental.channels.*
 import kotlinx.coroutines.experimental.runBlocking
 import org.jetbrains.kotlin.daemon.common.experimental.LoopbackNetworkInterface
-import sun.net.ConnectionResetException
 import java.beans.Transient
 import java.io.IOException
 import java.io.ObjectInputStream
@@ -48,8 +47,8 @@ abstract class DefaultAuthorizableClient<ServerType : ServerBase>(
     @kotlin.jvm.Transient
     private var socket: Socket? = null
 
-    abstract suspend fun authorizeOnServer(serverOutputChannel: ByteWriteChannelWrapper): Boolean
-    abstract suspend fun clientHandshake(input: ByteReadChannelWrapper, output: ByteWriteChannelWrapper, log: Logger): Boolean
+    abstract suspend fun authorizeOnServer(serverOutputChannel: ByteWriteChannelWrapper)
+    abstract suspend fun clientHandshake(input: ByteReadChannelWrapper, output: ByteWriteChannelWrapper, log: Logger)
     abstract suspend fun startKeepAlives()
     abstract suspend fun delayKeepAlives()
 
@@ -205,8 +204,6 @@ abstract class DefaultAuthorizableClient<ServerType : ServerBase>(
             }
         }
 
-
-
         log.info_and_print("connectToServer (port = $serverPort | host = $serverHost)")
         try {
             socket = LoopbackNetworkInterface.clientLoopbackSocketFactoryKtor.createSocket(
@@ -223,14 +220,8 @@ abstract class DefaultAuthorizableClient<ServerType : ServerBase>(
             log.info_and_print("OK serv.openIO() |port=$serverPort|")
             input = it.input
             output = it.output
-            if (!clientHandshake(input, output, log)) {
-                log.info_and_print("failed handshake($serverPort)")
-                throw ConnectionResetException("failed to establish connection with server (handshake failed)")
-            }
-            if (!authorizeOnServer(output)) {
-                log.info_and_print("failed authorization($serverPort)")
-                throw ConnectionResetException("failed to establish connection with server (authorization failed)")
-            }
+            clientHandshake(input, output, log)
+            authorizeOnServer(output)
         }
 
         startKeepAlives()
@@ -256,8 +247,8 @@ class DefaultClient<ServerType : ServerBase>(
     serverPort: Int,
     serverHost: String = LoopbackNetworkInterface.loopbackInetAddressName
 ) : DefaultAuthorizableClient<ServerType>(serverPort, serverHost) {
-    override suspend fun clientHandshake(input: ByteReadChannelWrapper, output: ByteWriteChannelWrapper, log: Logger) = true
-    override suspend fun authorizeOnServer(output: ByteWriteChannelWrapper): Boolean = true
+    override suspend fun clientHandshake(input: ByteReadChannelWrapper, output: ByteWriteChannelWrapper, log: Logger) {}
+    override suspend fun authorizeOnServer(serverOutputChannel: ByteWriteChannelWrapper) {}
     override suspend fun startKeepAlives() {}
     override suspend fun delayKeepAlives() {}
 }
