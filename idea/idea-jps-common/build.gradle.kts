@@ -1,5 +1,8 @@
 
-apply { plugin("kotlin") }
+plugins {
+    kotlin("jvm")
+    id("jps-compatible")
+}
 
 dependencies {
     compile(projectDist(":kotlin-stdlib"))
@@ -7,8 +10,8 @@ dependencies {
     compile(project(":compiler:util"))
     compile(project(":compiler:cli-common"))
     compile(project(":compiler:frontend.java"))
-    compileOnly(intellijCoreDep()) { includeJars("intellij-core") }
-    compileOnly(intellijDep()) { includeJars("jdom", "util") }
+    compileOnly(intellijDep())
+    compileOnly(intellijDep("jps-standalone")) { includeJars("jps-model") }
 }
 
 sourceSets {
@@ -16,3 +19,8 @@ sourceSets {
     "test" {}
 }
 
+runtimeJar {
+    archiveName = "jps-common-ide.jar"
+}
+
+ideaPlugin()

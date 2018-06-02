@@ -3,7 +3,7 @@ FILE fqName:<root> fileName:/dataClasses.kt
     $this: VALUE_PARAMETER INSTANCE_RECEIVER name:<this> type:Test1 flags:
     superClasses:
       CLASS IR_EXTERNAL_DECLARATION_STUB CLASS name:Any modality:OPEN visibility:public flags:
-    CONSTRUCTOR visibility:public <> (x:kotlin.Int, y:kotlin.String, z:kotlin.Any) returnType:Test1 flags:
+    CONSTRUCTOR visibility:public <> (x:kotlin.Int, y:kotlin.String, z:kotlin.Any) returnType:Test1 flags:primary
       VALUE_PARAMETER name:x index:0 type:kotlin.Int flags:
       VALUE_PARAMETER name:y index:1 type:kotlin.String flags:
       VALUE_PARAMETER name:z index:2 type:kotlin.Any flags:
@@ -11,30 +11,33 @@ FILE fqName:<root> fileName:/dataClasses.kt
         DELEGATING_CONSTRUCTOR_CALL 'constructor Any()'
         INSTANCE_INITIALIZER_CALL classDescriptor='Test1'
     PROPERTY name:x type:kotlin.Int visibility:public modality:FINAL flags:val
-      FIELD PROPERTY_BACKING_FIELD name:x type:kotlin.Int visibility:public
+      FIELD PROPERTY_BACKING_FIELD name:x type:kotlin.Int visibility:public flags:final
         EXPRESSION_BODY
           GET_VAR 'value-parameter x: Int' type=kotlin.Int origin=INITIALIZE_PROPERTY_FROM_PARAMETER
       FUN DEFAULT_PROPERTY_ACCESSOR name:<get-x> visibility:public modality:FINAL <> ($this:Test1) returnType:Int flags:
+        correspondingProperty: PROPERTY name:x type:kotlin.Int visibility:public modality:FINAL flags:val
         $this: VALUE_PARAMETER name:<this> type:Test1 flags:
         BLOCK_BODY
           RETURN type=kotlin.Nothing from='<get-x>(): Int'
             GET_FIELD 'x: Int' type=kotlin.Int origin=null
               receiver: GET_VAR 'this@Test1: Test1' type=Test1 origin=null
     PROPERTY name:y type:kotlin.String visibility:public modality:FINAL flags:val
-      FIELD PROPERTY_BACKING_FIELD name:y type:kotlin.String visibility:public
+      FIELD PROPERTY_BACKING_FIELD name:y type:kotlin.String visibility:public flags:final
         EXPRESSION_BODY
           GET_VAR 'value-parameter y: String' type=kotlin.String origin=INITIALIZE_PROPERTY_FROM_PARAMETER
       FUN DEFAULT_PROPERTY_ACCESSOR name:<get-y> visibility:public modality:FINAL <> ($this:Test1) returnType:String flags:
+        correspondingProperty: PROPERTY name:y type:kotlin.String visibility:public modality:FINAL flags:val
         $this: VALUE_PARAMETER name:<this> type:Test1 flags:
         BLOCK_BODY
           RETURN type=kotlin.Nothing from='<get-y>(): String'
             GET_FIELD 'y: String' type=kotlin.String origin=null
               receiver: GET_VAR 'this@Test1: Test1' type=Test1 origin=null
     PROPERTY name:z type:kotlin.Any visibility:public modality:FINAL flags:val
-      FIELD PROPERTY_BACKING_FIELD name:z type:kotlin.Any visibility:public
+      FIELD PROPERTY_BACKING_FIELD name:z type:kotlin.Any visibility:public flags:final
         EXPRESSION_BODY
           GET_VAR 'value-parameter z: Any' type=kotlin.Any origin=INITIALIZE_PROPERTY_FROM_PARAMETER
       FUN DEFAULT_PROPERTY_ACCESSOR name:<get-z> visibility:public modality:FINAL <> ($this:Test1) returnType:Any flags:
+        correspondingProperty: PROPERTY name:z type:kotlin.Any visibility:public modality:FINAL flags:val
         $this: VALUE_PARAMETER name:<this> type:Test1 flags:
         BLOCK_BODY
           RETURN type=kotlin.Nothing from='<get-z>(): Any'
@@ -80,7 +83,7 @@ FILE fqName:<root> fileName:/dataClasses.kt
             z: GET_VAR 'value-parameter z: Any = ...' type=kotlin.Any origin=null
     FUN GENERATED_DATA_CLASS_MEMBER name:toString visibility:public modality:OPEN <> ($this:Test1) returnType:String flags:
       overridden:
-        FUN IR_EXTERNAL_DECLARATION_STUB name:toString visibility:public modality:OPEN <> () returnType:String flags:
+        FUN IR_EXTERNAL_DECLARATION_STUB name:toString visibility:public modality:OPEN <> ($this:kotlin.Any) returnType:String flags:
       $this: VALUE_PARAMETER name:<this> type:Test1 flags:
       BLOCK_BODY
         RETURN type=kotlin.Nothing from='toString(): String'
@@ -100,7 +103,7 @@ FILE fqName:<root> fileName:/dataClasses.kt
             CONST String type=kotlin.String value=)
     FUN GENERATED_DATA_CLASS_MEMBER name:hashCode visibility:public modality:OPEN <> ($this:Test1) returnType:Int flags:
       overridden:
-        FUN IR_EXTERNAL_DECLARATION_STUB name:hashCode visibility:public modality:OPEN <> () returnType:Int flags:
+        FUN IR_EXTERNAL_DECLARATION_STUB name:hashCode visibility:public modality:OPEN <> ($this:kotlin.Any) returnType:Int flags:
       $this: VALUE_PARAMETER name:<this> type:Test1 flags:
       BLOCK_BODY
         VAR IR_TEMPORARY_VARIABLE name:tmp0_result type:kotlin.Int flags:var
@@ -129,7 +132,7 @@ FILE fqName:<root> fileName:/dataClasses.kt
           GET_VAR 'tmp0_result: Int' type=kotlin.Int origin=null
     FUN GENERATED_DATA_CLASS_MEMBER name:equals visibility:public modality:OPEN <> ($this:Test1, other:kotlin.Any?) returnType:Boolean flags:
       overridden:
-        FUN IR_EXTERNAL_DECLARATION_STUB name:equals visibility:public modality:OPEN <> (other:kotlin.Any?) returnType:Boolean flags:
+        FUN IR_EXTERNAL_DECLARATION_STUB name:equals visibility:public modality:OPEN <> ($this:kotlin.Any, other:kotlin.Any?) returnType:Boolean flags:
       $this: VALUE_PARAMETER name:<this> type:Test1 flags:
       VALUE_PARAMETER name:other index:0 type:kotlin.Any? flags:
       BLOCK_BODY
@@ -187,16 +190,17 @@ FILE fqName:<root> fileName:/dataClasses.kt
     $this: VALUE_PARAMETER INSTANCE_RECEIVER name:<this> type:Test2 flags:
     superClasses:
       CLASS IR_EXTERNAL_DECLARATION_STUB CLASS name:Any modality:OPEN visibility:public flags:
-    CONSTRUCTOR visibility:public <> (x:kotlin.Any?) returnType:Test2 flags:
+    CONSTRUCTOR visibility:public <> (x:kotlin.Any?) returnType:Test2 flags:primary
       VALUE_PARAMETER name:x index:0 type:kotlin.Any? flags:
       BLOCK_BODY
         DELEGATING_CONSTRUCTOR_CALL 'constructor Any()'
         INSTANCE_INITIALIZER_CALL classDescriptor='Test2'
     PROPERTY name:x type:kotlin.Any? visibility:public modality:FINAL flags:val
-      FIELD PROPERTY_BACKING_FIELD name:x type:kotlin.Any? visibility:public
+      FIELD PROPERTY_BACKING_FIELD name:x type:kotlin.Any? visibility:public flags:final
         EXPRESSION_BODY
           GET_VAR 'value-parameter x: Any?' type=kotlin.Any? origin=INITIALIZE_PROPERTY_FROM_PARAMETER
       FUN DEFAULT_PROPERTY_ACCESSOR name:<get-x> visibility:public modality:FINAL <> ($this:Test2) returnType:Any? flags:
+        correspondingProperty: PROPERTY name:x type:kotlin.Any? visibility:public modality:FINAL flags:val
         $this: VALUE_PARAMETER name:<this> type:Test2 flags:
         BLOCK_BODY
           RETURN type=kotlin.Nothing from='<get-x>(): Any?'
@@ -220,7 +224,7 @@ FILE fqName:<root> fileName:/dataClasses.kt
             x: GET_VAR 'value-parameter x: Any? = ...' type=kotlin.Any? origin=null
     FUN GENERATED_DATA_CLASS_MEMBER name:toString visibility:public modality:OPEN <> ($this:Test2) returnType:String flags:
       overridden:
-        FUN IR_EXTERNAL_DECLARATION_STUB name:toString visibility:public modality:OPEN <> () returnType:String flags:
+        FUN IR_EXTERNAL_DECLARATION_STUB name:toString visibility:public modality:OPEN <> ($this:kotlin.Any) returnType:String flags:
       $this: VALUE_PARAMETER name:<this> type:Test2 flags:
       BLOCK_BODY
         RETURN type=kotlin.Nothing from='toString(): String'
@@ -232,7 +236,7 @@ FILE fqName:<root> fileName:/dataClasses.kt
             CONST String type=kotlin.String value=)
     FUN GENERATED_DATA_CLASS_MEMBER name:hashCode visibility:public modality:OPEN <> ($this:Test2) returnType:Int flags:
       overridden:
-        FUN IR_EXTERNAL_DECLARATION_STUB name:hashCode visibility:public modality:OPEN <> () returnType:Int flags:
+        FUN IR_EXTERNAL_DECLARATION_STUB name:hashCode visibility:public modality:OPEN <> ($this:kotlin.Any) returnType:Int flags:
       $this: VALUE_PARAMETER name:<this> type:Test2 flags:
       BLOCK_BODY
         VAR IR_TEMPORARY_VARIABLE name:tmp0_result type:kotlin.Int flags:var
@@ -256,7 +260,7 @@ FILE fqName:<root> fileName:/dataClasses.kt
           GET_VAR 'tmp0_result: Int' type=kotlin.Int origin=null
     FUN GENERATED_DATA_CLASS_MEMBER name:equals visibility:public modality:OPEN <> ($this:Test2, other:kotlin.Any?) returnType:Boolean flags:
       overridden:
-        FUN IR_EXTERNAL_DECLARATION_STUB name:equals visibility:public modality:OPEN <> (other:kotlin.Any?) returnType:Boolean flags:
+        FUN IR_EXTERNAL_DECLARATION_STUB name:equals visibility:public modality:OPEN <> ($this:kotlin.Any, other:kotlin.Any?) returnType:Boolean flags:
       $this: VALUE_PARAMETER name:<this> type:Test2 flags:
       VALUE_PARAMETER name:other index:0 type:kotlin.Any? flags:
       BLOCK_BODY
@@ -294,7 +298,7 @@ FILE fqName:<root> fileName:/dataClasses.kt
     $this: VALUE_PARAMETER INSTANCE_RECEIVER name:<this> type:Test3 flags:
     superClasses:
       CLASS IR_EXTERNAL_DECLARATION_STUB CLASS name:Any modality:OPEN visibility:public flags:
-    CONSTRUCTOR visibility:public <> (d:kotlin.Double, dn:kotlin.Double?, f:kotlin.Float, df:kotlin.Float?) returnType:Test3 flags:
+    CONSTRUCTOR visibility:public <> (d:kotlin.Double, dn:kotlin.Double?, f:kotlin.Float, df:kotlin.Float?) returnType:Test3 flags:primary
       VALUE_PARAMETER name:d index:0 type:kotlin.Double flags:
       VALUE_PARAMETER name:dn index:1 type:kotlin.Double? flags:
       VALUE_PARAMETER name:f index:2 type:kotlin.Float flags:
@@ -303,40 +307,44 @@ FILE fqName:<root> fileName:/dataClasses.kt
         DELEGATING_CONSTRUCTOR_CALL 'constructor Any()'
         INSTANCE_INITIALIZER_CALL classDescriptor='Test3'
     PROPERTY name:d type:kotlin.Double visibility:public modality:FINAL flags:val
-      FIELD PROPERTY_BACKING_FIELD name:d type:kotlin.Double visibility:public
+      FIELD PROPERTY_BACKING_FIELD name:d type:kotlin.Double visibility:public flags:final
         EXPRESSION_BODY
           GET_VAR 'value-parameter d: Double' type=kotlin.Double origin=INITIALIZE_PROPERTY_FROM_PARAMETER
       FUN DEFAULT_PROPERTY_ACCESSOR name:<get-d> visibility:public modality:FINAL <> ($this:Test3) returnType:Double flags:
+        correspondingProperty: PROPERTY name:d type:kotlin.Double visibility:public modality:FINAL flags:val
         $this: VALUE_PARAMETER name:<this> type:Test3 flags:
         BLOCK_BODY
           RETURN type=kotlin.Nothing from='<get-d>(): Double'
             GET_FIELD 'd: Double' type=kotlin.Double origin=null
               receiver: GET_VAR 'this@Test3: Test3' type=Test3 origin=null
     PROPERTY name:dn type:kotlin.Double? visibility:public modality:FINAL flags:val
-      FIELD PROPERTY_BACKING_FIELD name:dn type:kotlin.Double? visibility:public
+      FIELD PROPERTY_BACKING_FIELD name:dn type:kotlin.Double? visibility:public flags:final
         EXPRESSION_BODY
           GET_VAR 'value-parameter dn: Double?' type=kotlin.Double? origin=INITIALIZE_PROPERTY_FROM_PARAMETER
       FUN DEFAULT_PROPERTY_ACCESSOR name:<get-dn> visibility:public modality:FINAL <> ($this:Test3) returnType:Double? flags:
+        correspondingProperty: PROPERTY name:dn type:kotlin.Double? visibility:public modality:FINAL flags:val
         $this: VALUE_PARAMETER name:<this> type:Test3 flags:
         BLOCK_BODY
           RETURN type=kotlin.Nothing from='<get-dn>(): Double?'
             GET_FIELD 'dn: Double?' type=kotlin.Double? origin=null
               receiver: GET_VAR 'this@Test3: Test3' type=Test3 origin=null
     PROPERTY name:f type:kotlin.Float visibility:public modality:FINAL flags:val
-      FIELD PROPERTY_BACKING_FIELD name:f type:kotlin.Float visibility:public
+      FIELD PROPERTY_BACKING_FIELD name:f type:kotlin.Float visibility:public flags:final
         EXPRESSION_BODY
           GET_VAR 'value-parameter f: Float' type=kotlin.Float origin=INITIALIZE_PROPERTY_FROM_PARAMETER
       FUN DEFAULT_PROPERTY_ACCESSOR name:<get-f> visibility:public modality:FINAL <> ($this:Test3) returnType:Float flags:
+        correspondingProperty: PROPERTY name:f type:kotlin.Float visibility:public modality:FINAL flags:val
         $this: VALUE_PARAMETER name:<this> type:Test3 flags:
         BLOCK_BODY
           RETURN type=kotlin.Nothing from='<get-f>(): Float'
             GET_FIELD 'f: Float' type=kotlin.Float origin=null
               receiver: GET_VAR 'this@Test3: Test3' type=Test3 origin=null
     PROPERTY name:df type:kotlin.Float? visibility:public modality:FINAL flags:val
-      FIELD PROPERTY_BACKING_FIELD name:df type:kotlin.Float? visibility:public
+      FIELD PROPERTY_BACKING_FIELD name:df type:kotlin.Float? visibility:public flags:final
         EXPRESSION_BODY
           GET_VAR 'value-parameter df: Float?' type=kotlin.Float? origin=INITIALIZE_PROPERTY_FROM_PARAMETER
       FUN DEFAULT_PROPERTY_ACCESSOR name:<get-df> visibility:public modality:FINAL <> ($this:Test3) returnType:Float? flags:
+        correspondingProperty: PROPERTY name:df type:kotlin.Float? visibility:public modality:FINAL flags:val
         $this: VALUE_PARAMETER name:<this> type:Test3 flags:
         BLOCK_BODY
           RETURN type=kotlin.Nothing from='<get-df>(): Float?'
@@ -393,7 +401,7 @@ FILE fqName:<root> fileName:/dataClasses.kt
             df: GET_VAR 'value-parameter df: Float? = ...' type=kotlin.Float? origin=null
     FUN GENERATED_DATA_CLASS_MEMBER name:toString visibility:public modality:OPEN <> ($this:Test3) returnType:String flags:
       overridden:
-        FUN IR_EXTERNAL_DECLARATION_STUB name:toString visibility:public modality:OPEN <> () returnType:String flags:
+        FUN IR_EXTERNAL_DECLARATION_STUB name:toString visibility:public modality:OPEN <> ($this:kotlin.Any) returnType:String flags:
       $this: VALUE_PARAMETER name:<this> type:Test3 flags:
       BLOCK_BODY
         RETURN type=kotlin.Nothing from='toString(): String'
@@ -417,7 +425,7 @@ FILE fqName:<root> fileName:/dataClasses.kt
             CONST String type=kotlin.String value=)
     FUN GENERATED_DATA_CLASS_MEMBER name:hashCode visibility:public modality:OPEN <> ($this:Test3) returnType:Int flags:
       overridden:
-        FUN IR_EXTERNAL_DECLARATION_STUB name:hashCode visibility:public modality:OPEN <> () returnType:Int flags:
+        FUN IR_EXTERNAL_DECLARATION_STUB name:hashCode visibility:public modality:OPEN <> ($this:kotlin.Any) returnType:Int flags:
       $this: VALUE_PARAMETER name:<this> type:Test3 flags:
       BLOCK_BODY
         VAR IR_TEMPORARY_VARIABLE name:tmp0_result type:kotlin.Int flags:var
@@ -476,7 +484,7 @@ FILE fqName:<root> fileName:/dataClasses.kt
           GET_VAR 'tmp0_result: Int' type=kotlin.Int origin=null
     FUN GENERATED_DATA_CLASS_MEMBER name:equals visibility:public modality:OPEN <> ($this:Test3, other:kotlin.Any?) returnType:Boolean flags:
       overridden:
-        FUN IR_EXTERNAL_DECLARATION_STUB name:equals visibility:public modality:OPEN <> (other:kotlin.Any?) returnType:Boolean flags:
+        FUN IR_EXTERNAL_DECLARATION_STUB name:equals visibility:public modality:OPEN <> ($this:kotlin.Any, other:kotlin.Any?) returnType:Boolean flags:
       $this: VALUE_PARAMETER name:<this> type:Test3 flags:
       VALUE_PARAMETER name:other index:0 type:kotlin.Any? flags:
       BLOCK_BODY

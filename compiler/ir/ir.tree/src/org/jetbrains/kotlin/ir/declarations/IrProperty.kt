@@ -33,13 +33,11 @@ interface IrProperty : IrDeclaration {
     val isConst: Boolean
     val isLateinit: Boolean
     val isDelegated: Boolean
+    val isExternal: Boolean
 
     val typeParameters: MutableList<IrTypeParameter>
 
     var backingField: IrField?
-    var getter: IrFunction?
-    var setter: IrFunction?
-
-    override val declarationKind: IrDeclarationKind
-        get() = IrDeclarationKind.PROPERTY
+    var getter: IrSimpleFunction?
+    var setter: IrSimpleFunction?
 }

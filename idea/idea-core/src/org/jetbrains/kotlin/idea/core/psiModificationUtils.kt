@@ -37,7 +37,9 @@ import org.jetbrains.kotlin.psi.psiUtil.*
 import org.jetbrains.kotlin.psi.typeRefHelpers.setReceiverTypeReference
 import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.OverridingUtil
+import org.jetbrains.kotlin.resolve.calls.callUtil.getResolvedCall
 import org.jetbrains.kotlin.resolve.calls.callUtil.getValueArgumentsInParentheses
+import org.jetbrains.kotlin.resolve.calls.model.ArgumentMatch
 import org.jetbrains.kotlin.resolve.lazy.BodyResolveMode
 import org.jetbrains.kotlin.types.KotlinType
 import org.jetbrains.kotlin.types.isError
@@ -68,6 +70,13 @@ fun KtLambdaArgument.moveInsideParenthesesAndReplaceWith(
         bindingContext: BindingContext
 ): KtCallExpression = moveInsideParenthesesAndReplaceWith(replacement, getLambdaArgumentName(bindingContext))
 
+
+fun KtLambdaArgument.getLambdaArgumentName(bindingContext: BindingContext): Name? {
+    val callExpression = parent as KtCallExpression
+    val resolvedCall = callExpression.getResolvedCall(bindingContext)
+    return (resolvedCall?.getArgumentMapping(this) as? ArgumentMatch)?.valueParameter?.name
+}
+
 fun KtLambdaArgument.moveInsideParenthesesAndReplaceWith(
         replacement: KtExpression,
         functionLiteralArgumentName: Name?
@@ -97,6 +106,13 @@ fun KtLambdaArgument.moveInsideParenthesesAndReplaceWith(
         functionLiteralArgument.replace(valueArgumentList)
     }
     return oldCallExpression.replace(newCallExpression) as KtCallExpression
+}
+
+fun KtLambdaExpression.moveFunctionLiteralOutsideParenthesesIfPossible() {
+    val call = ((parent as? KtValueArgument)?.parent as? KtValueArgumentList)?.parent as? KtCallExpression ?: return
+    if (call.canMoveLambdaOutsideParentheses()) {
+        call.moveFunctionLiteralOutsideParentheses()
+    }
 }
 
 private fun shouldLambdaParameterBeNamed(args: List<ValueArgument>, callExpr: KtCallExpression): Boolean {

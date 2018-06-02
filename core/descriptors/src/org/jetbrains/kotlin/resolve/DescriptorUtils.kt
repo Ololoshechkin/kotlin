@@ -197,14 +197,6 @@ fun ValueParameterDescriptor.declaresOrInheritsDefaultValue(): Boolean {
     )
 }
 
-fun FunctionDescriptor.hasOrInheritsParametersWithDefaultValue(): Boolean = DFS.ifAny(
-        listOf(this),
-        { current -> current.overriddenDescriptors.map { it.original } },
-        { it.hasOwnParametersWithDefaultValue() }
-)
-
-fun FunctionDescriptor.hasOwnParametersWithDefaultValue() = original.valueParameters.any { it.declaresDefaultValue() }
-
 fun Annotated.isRepeatableAnnotation(): Boolean =
         annotations.findAnnotation(KotlinBuiltIns.FQ_NAMES.repeatable) != null
 
@@ -217,6 +209,18 @@ fun Annotated.getAnnotationRetention(): KotlinRetention? {
                     as? EnumValue ?: return null
     return KotlinRetention.valueOf(retentionArgumentValue.enumEntryName.asString())
 }
+
+val Annotated.nonSourceAnnotations: List<AnnotationDescriptor>
+    get() = annotations.filterOutSourceAnnotations()
+
+fun Iterable<AnnotationDescriptor>.filterOutSourceAnnotations(): List<AnnotationDescriptor> =
+    filterNot(AnnotationDescriptor::isSourceAnnotation)
+
+val AnnotationDescriptor.isSourceAnnotation: Boolean
+    get() {
+        val classDescriptor = annotationClass
+        return classDescriptor == null || classDescriptor.getAnnotationRetention() == KotlinRetention.SOURCE
+    }
 
 val DeclarationDescriptor.parentsWithSelf: Sequence<DeclarationDescriptor>
     get() = generateSequence(this, { it.containingDeclaration })

@@ -1,3 +1,8 @@
+/*
+ * Copyright 2010-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license
+ * that can be found in the license/LICENSE.txt file.
+ */
+
 package templates
 
 import templates.Family.*
@@ -36,6 +41,14 @@ object DocExtensions {
         get() = when (this) {
             Sequences -> "sequence"
             else -> "list"
+        }
+
+    val PrimitiveType?.zero: String
+        get() = when (this) {
+            null -> "`null`"
+            PrimitiveType.Boolean -> "`false`"
+            PrimitiveType.Char -> "null char (`\\u0000`)"
+            else -> "zero"
         }
 
     fun textWhen(condition: Boolean, text: () -> String): String = if (condition) text() else ""

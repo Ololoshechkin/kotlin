@@ -72,7 +72,7 @@ object ModifierCheckerCore {
         INLINE_KEYWORD to EnumSet.of(FUNCTION, PROPERTY, PROPERTY_GETTER, PROPERTY_SETTER, CLASS_ONLY),
         NOINLINE_KEYWORD to EnumSet.of(VALUE_PARAMETER),
         TAILREC_KEYWORD to EnumSet.of(FUNCTION),
-        SUSPEND_KEYWORD to EnumSet.of(MEMBER_FUNCTION, TOP_LEVEL_FUNCTION),
+        SUSPEND_KEYWORD to EnumSet.of(MEMBER_FUNCTION, TOP_LEVEL_FUNCTION, LOCAL_FUNCTION),
         EXTERNAL_KEYWORD to EnumSet.of(FUNCTION, PROPERTY, PROPERTY_GETTER, PROPERTY_SETTER, CLASS),
         ANNOTATION_KEYWORD to EnumSet.of(ANNOTATION_CLASS),
         CROSSINLINE_KEYWORD to EnumSet.of(VALUE_PARAMETER),
@@ -446,7 +446,9 @@ object ModifierCheckerCore {
                 }
             }
         }
-        val actualTargets = AnnotationChecker.getDeclarationSiteActualTargetList(listOwner, descriptor as? ClassDescriptor, trace)
+        val actualTargets = AnnotationChecker.getDeclarationSiteActualTargetList(
+            listOwner, descriptor as? ClassDescriptor, trace.bindingContext
+        )
         val list = listOwner.modifierList ?: return
         checkModifierList(list, trace, descriptor?.containingDeclaration, actualTargets, languageVersionSettings)
     }

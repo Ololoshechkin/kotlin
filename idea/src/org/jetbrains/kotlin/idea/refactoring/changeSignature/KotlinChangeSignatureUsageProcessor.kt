@@ -44,6 +44,9 @@ import org.jetbrains.kotlin.idea.analysis.analyzeInContext
 import org.jetbrains.kotlin.idea.caches.project.getModuleInfo
 import org.jetbrains.kotlin.idea.caches.project.moduleInfo
 import org.jetbrains.kotlin.idea.caches.resolve.*
+import org.jetbrains.kotlin.idea.caches.resolve.util.getJavaMethodDescriptor
+import org.jetbrains.kotlin.idea.caches.resolve.util.getJavaOrKotlinMemberDescriptor
+import org.jetbrains.kotlin.idea.caches.resolve.util.javaResolutionFacade
 import org.jetbrains.kotlin.idea.codeInsight.DescriptorToSourceUtilsIde
 import org.jetbrains.kotlin.idea.core.compareDescriptors
 import org.jetbrains.kotlin.idea.refactoring.*
@@ -193,7 +196,7 @@ class KotlinChangeSignatureUsageProcessor : ChangeSignatureUsageProcessor {
                             result.add(
                                     object : UnresolvableCollisionUsageInfo(callElement, null) {
                                         override fun getDescription(): String {
-                                            val signature = IdeDescriptorRenderers.SOURCE_CODE_SHORT_NAMES_IN_TYPES.render(callerDescriptor)
+                                            val signature = IdeDescriptorRenderers.SOURCE_CODE_SHORT_NAMES_NO_ANNOTATIONS.render(callerDescriptor)
                                             return "There is already a variable '$currentName' in $signature. It will conflict with the new parameter."
                                         }
                                     }
@@ -612,7 +615,7 @@ class KotlinChangeSignatureUsageProcessor : ChangeSignatureUsageProcessor {
             callerDescriptor: DeclarationDescriptor) {
         val valueParameters = caller.getValueParameters()
         val existingParameters = valueParameters.associateBy { it.name }
-        val signature = IdeDescriptorRenderers.SOURCE_CODE_SHORT_NAMES_IN_TYPES.render(callerDescriptor)
+        val signature = IdeDescriptorRenderers.SOURCE_CODE_SHORT_NAMES_NO_ANNOTATIONS.render(callerDescriptor)
         for (parameterInfo in changeInfo.getNonReceiverParameters()) {
             if (!(parameterInfo.isNewParameter)) continue
 
@@ -907,7 +910,8 @@ class KotlinChangeSignatureUsageProcessor : ChangeSignatureUsageProcessor {
                 val descriptorWrapper = usages.firstIsInstanceOrNull<OriginalJavaMethodDescriptorWrapper>()
                 val methodDescriptor = (descriptorWrapper?.originalJavaMethodDescriptor) ?: return true
 
-                val javaMethodChangeInfo = changeInfo.toJetChangeInfo(methodDescriptor)
+                val resolutionFacade = (methodDescriptor.method as? PsiMethod)?.javaResolutionFacade() ?: return false
+                val javaMethodChangeInfo = changeInfo.toJetChangeInfo(methodDescriptor, resolutionFacade)
                 for (info in usages) {
                     (info as? JavaMethodKotlinUsageWithDelegate<*>)?.javaMethodChangeInfo = javaMethodChangeInfo
                 }

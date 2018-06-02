@@ -42,13 +42,13 @@ import org.jetbrains.kotlin.idea.compiler.configuration.KotlinCommonCompilerArgu
 import org.jetbrains.kotlin.idea.compiler.configuration.KotlinCompilerSettings
 import org.jetbrains.kotlin.idea.framework.KotlinSdkType
 import org.jetbrains.kotlin.idea.util.application.runWriteAction
+import org.jetbrains.kotlin.idea.util.projectStructure.sdk
 import org.jetbrains.kotlin.idea.versions.*
 import kotlin.reflect.KProperty1
 
 private fun getDefaultTargetPlatform(module: Module, rootModel: ModuleRootModel?): TargetPlatformKind<*> {
     for (platform in TargetPlatformKind.ALL_PLATFORMS) {
-        if (platform.version == TargetPlatformVersion.NoVersion &&
-            getRuntimeLibraryVersions(module, rootModel, platform).isNotEmpty()) {
+        if (getRuntimeLibraryVersions(module, rootModel, platform).isNotEmpty()) {
             return platform
         }
     }
@@ -122,61 +122,6 @@ val mavenLibraryIdToPlatform: Map<String, TargetPlatformKind<*>> by lazy {
             .sortedByDescending { it.first.length }
             .toMap()
 }
-
-internal fun Module.findImplementingModules(modelsProvider: IdeModifiableModelsProvider): List<Module> {
-    return modelsProvider.modules.filter { module ->
-        module.findImplementedModuleName(modelsProvider) == name
-    }
-}
-
-val Module.implementingModules: List<Module>
-    get() = cached(CachedValueProvider {
-        CachedValueProvider.Result(
-                findImplementingModules(IdeModifiableModelsProviderImpl(project)),
-                ProjectRootModificationTracker.getInstance(project)
-        )
-    })
-
-private fun Module.getModuleInfo(baseModuleSourceInfo: ModuleSourceInfo): ModuleSourceInfo? =
-    when (baseModuleSourceInfo) {
-        is ModuleProductionSourceInfo -> productionSourceInfo()
-        is ModuleTestSourceInfo -> testSourceInfo()
-        else -> null
-    }
-
-private fun Module.findImplementingModuleInfos(moduleSourceInfo: ModuleSourceInfo): List<ModuleSourceInfo> {
-    val modelsProvider = IdeModifiableModelsProviderImpl(project)
-    val implementingModules = findImplementingModules(modelsProvider)
-    return implementingModules.mapNotNull { it.getModuleInfo(moduleSourceInfo) }
-}
-
-val ModuleDescriptor.implementingDescriptors: List<ModuleDescriptor>
-    get() {
-        val moduleSourceInfo = getCapability(ModuleInfo.Capability) as? ModuleSourceInfo ?: return emptyList()
-        val module = moduleSourceInfo.module
-        return module.cached(CachedValueProvider {
-            val implementingModuleInfos = module.findImplementingModuleInfos(moduleSourceInfo)
-            val implementingModuleDescriptors = implementingModuleInfos.mapNotNull {
-                KotlinCacheService.getInstance(module.project).getResolutionFacadeByModuleInfo(it, it.platform)?.moduleDescriptor
-            }
-            CachedValueProvider.Result(
-                    implementingModuleDescriptors,
-                    *(implementingModuleInfos.map { it.createModificationTracker() } +
-                      ProjectRootModificationTracker.getInstance(module.project)).toTypedArray()
-            )
-        })
-    }
-
-val ModuleDescriptor.implementedDescriptor: ModuleDescriptor?
-    get() {
-        val moduleSourceInfo = getCapability(ModuleInfo.Capability) as? ModuleSourceInfo ?: return null
-
-        val implementedModuleInfo = moduleSourceInfo.expectedBy
-        return implementedModuleInfo?.let {
-            KotlinCacheService.getInstance(moduleSourceInfo.module.project)
-                .getResolutionFacadeByModuleInfo(it, it.platform)?.moduleDescriptor
-        }
-    }
 
 fun Module.getOrCreateFacet(modelsProvider: IdeModifiableModelsProvider,
                             useProjectSettings: Boolean,
@@ -277,7 +222,14 @@ private fun Module.configureSdkIfPossible(compilerArguments: CommonCompilerArgum
         val jdkHome = compilerArguments.jdkHome ?: return
         allSdks.firstOrNull { it.sdkType is JavaSdk && FileUtil.comparePaths(it.homePath, jdkHome) == 0 } ?: return
     } else {
-        allSdks.firstOrNull { it.sdkType is KotlinSdkType } ?: KotlinSdkType.INSTANCE.createSdkWithUniqueName(allSdks.toList())
+        allSdks.firstOrNull { it.sdkType is KotlinSdkType }
+                ?: modelsProvider
+                    .modifiableModuleModel
+                    .modules
+                    .asSequence()
+                    .mapNotNull { modelsProvider.getModifiableRootModel(it).sdk }
+                    .firstOrNull { it.sdkType is KotlinSdkType }
+                ?: KotlinSdkType.INSTANCE.createSdkWithUniqueName(allSdks.toList())
     }
 
     modelsProvider.getModifiableRootModel(this).sdk = sdk

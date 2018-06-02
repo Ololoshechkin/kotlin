@@ -48,8 +48,11 @@ class KotlinCallComponents(
 class SimpleCandidateFactory(
     val callComponents: KotlinCallComponents,
     val scopeTower: ImplicitScopeTower,
-    val kotlinCall: KotlinCall
+    val kotlinCall: KotlinCall,
+    val resolutionCallbacks: KotlinResolutionCallbacks
 ) : CandidateFactory<KotlinResolutionCandidate> {
+    val inferenceSession: InferenceSession = resolutionCallbacks.inferenceSession
+
     val baseSystem: ConstraintStorage
 
     init {
@@ -60,6 +63,8 @@ class SimpleCandidateFactory(
             baseSystem.addSubsystemFromArgument(argument)
         }
         baseSystem.addSubsystemFromArgument(kotlinCall.externalArgument)
+
+        baseSystem.addOtherSystem(inferenceSession.currentConstraintSystem())
 
         this.baseSystem = baseSystem.asReadOnlyStorage()
     }
@@ -141,7 +146,7 @@ class SimpleCandidateFactory(
 
         initialDiagnostics.forEach(candidate::addDiagnostic)
 
-        if (callComponents.statelessCallbacks.isHiddenInResolution(descriptor, kotlinCall)) {
+        if (callComponents.statelessCallbacks.isHiddenInResolution(descriptor, kotlinCall, resolutionCallbacks)) {
             candidate.addDiagnostic(HiddenDescriptor)
         }
 
@@ -188,7 +193,8 @@ enum class KotlinCallKind(vararg resolutionPart: ResolutionPart) {
         NoArguments,
         CreateFreshVariablesSubstitutor,
         CheckExplicitReceiverKindConsistency,
-        CheckReceivers
+        CheckReceivers,
+        PostponedVariablesInitializerResolutionPart
     ),
     FUNCTION(
         CheckInstantiationOfAbstractClass,
@@ -202,8 +208,10 @@ enum class KotlinCallKind(vararg resolutionPart: ResolutionPart) {
         CheckExplicitReceiverKindConsistency,
         CheckReceivers,
         CheckArguments,
-        CheckExternalArgument
+        CheckExternalArgument,
+        PostponedVariablesInitializerResolutionPart
     ),
+    INVOKE(*FUNCTION.resolutionSequence.toTypedArray()),
     UNSUPPORTED();
 
     val resolutionSequence = resolutionPart.asList()

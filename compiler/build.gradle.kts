@@ -3,7 +3,10 @@ import java.io.File
 import org.gradle.api.tasks.bundling.Jar
 import org.jetbrains.kotlin.gradle.dsl.KotlinCompile
 
-apply { plugin("kotlin") }
+plugins {
+    kotlin("jvm")
+    id("jps-compatible")
+}
 
 jvmTarget = "1.6"
 
@@ -11,16 +14,22 @@ val compilerModules: Array<String> by rootProject.extra
 val otherCompilerModules = compilerModules.filter { it != path }
 
 val effectSystemEnabled: Boolean by rootProject.extra
-if (effectSystemEnabled) {
-    allprojects {
-        tasks.withType<KotlinCompile<*>> {
-            kotlinOptions {
-                freeCompilerArgs += listOf("-Xeffect-system")
+val newInferenceEnabled: Boolean by rootProject.extra
+
+configureFreeCompilerArg(effectSystemEnabled, "-Xeffect-system")
+configureFreeCompilerArg(newInferenceEnabled, "-Xnew-inference")
+
+fun configureFreeCompilerArg(isEnabled: Boolean, compilerArgument: String) {
+    if (isEnabled) {
+        allprojects {
+            tasks.withType<KotlinCompile<*>> {
+                kotlinOptions {
+                    freeCompilerArgs += listOf(compilerArgument)
+                }
             }
         }
     }
 }
-
 
 val depDistProjects = listOf(
         ":kotlin-script-runtime",
@@ -65,6 +74,10 @@ dependencies {
     testCompile(projectTests(":generators:test-generator"))
     testCompile(project(":compiler:ir.ir2cfg"))
     testCompile(project(":compiler:ir.tree")) // used for deepCopyWithSymbols call that is removed by proguard from the compiler TODO: make it more straightforward
+    testCompile(project(":kotlin-scripting-compiler"))
+    testCompile(project(":kotlin-scripting-misc"))
+    testCompile(project(":kotlin-script-util"))
+    testCompileOnly(projectRuntimeJar(":kotlin-daemon-client"))
     testCompileOnly(project(":kotlin-daemon-client"))
     testCompile(project(":compiler:daemon")) // +
     testCompile(project(":compiler:daemon-common")) // +
@@ -109,6 +122,11 @@ sourceSets {
         // not yet ready
 //        java.srcDir("tests-ir-jvm/tests")
     }
+}
+
+val jar: Jar by tasks
+jar.from("../idea/src") {
+    include("META-INF/extensions/compiler.xml")
 }
 
 projectTest {
@@ -204,3 +222,5 @@ codegenTest(target = 10, jvm = 10) {
 }
 
 val generateTests by generator("org.jetbrains.kotlin.generators.tests.GenerateCompilerTestsKt")
+
+testsJar()

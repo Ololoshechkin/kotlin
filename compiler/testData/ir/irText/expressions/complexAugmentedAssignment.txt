@@ -3,21 +3,23 @@ FILE fqName:<root> fileName:/complexAugmentedAssignment.kt
     $this: VALUE_PARAMETER INSTANCE_RECEIVER name:<this> type:X1 flags:
     superClasses:
       CLASS IR_EXTERNAL_DECLARATION_STUB CLASS name:Any modality:OPEN visibility:public flags:
-    CONSTRUCTOR visibility:private <> () returnType:X1 flags:
+    CONSTRUCTOR visibility:private <> () returnType:X1 flags:primary
       BLOCK_BODY
         DELEGATING_CONSTRUCTOR_CALL 'constructor Any()'
         INSTANCE_INITIALIZER_CALL classDescriptor='X1'
     PROPERTY name:x1 type:kotlin.Int visibility:public modality:FINAL flags:var
-      FIELD PROPERTY_BACKING_FIELD name:x1 type:kotlin.Int visibility:public
+      FIELD PROPERTY_BACKING_FIELD name:x1 type:kotlin.Int visibility:public flags:
         EXPRESSION_BODY
           CONST Int type=kotlin.Int value=0
       FUN DEFAULT_PROPERTY_ACCESSOR name:<get-x1> visibility:public modality:FINAL <> ($this:X1) returnType:Int flags:
+        correspondingProperty: PROPERTY name:x1 type:kotlin.Int visibility:public modality:FINAL flags:var
         $this: VALUE_PARAMETER name:<this> type:X1 flags:
         BLOCK_BODY
           RETURN type=kotlin.Nothing from='<get-x1>(): Int'
             GET_FIELD 'x1: Int' type=kotlin.Int origin=null
               receiver: GET_VAR 'this@X1: X1' type=X1 origin=null
       FUN DEFAULT_PROPERTY_ACCESSOR name:<set-x1> visibility:public modality:FINAL <> ($this:X1, <set-?>:kotlin.Int) returnType:Unit flags:
+        correspondingProperty: PROPERTY name:x1 type:kotlin.Int visibility:public modality:FINAL flags:var
         $this: VALUE_PARAMETER name:<this> type:X1 flags:
         VALUE_PARAMETER name:<set-?> index:0 type:kotlin.Int flags:
         BLOCK_BODY
@@ -28,21 +30,23 @@ FILE fqName:<root> fileName:/complexAugmentedAssignment.kt
       $this: VALUE_PARAMETER INSTANCE_RECEIVER name:<this> type:X1.X2 flags:
       superClasses:
         CLASS IR_EXTERNAL_DECLARATION_STUB CLASS name:Any modality:OPEN visibility:public flags:
-      CONSTRUCTOR visibility:private <> () returnType:X1.X2 flags:
+      CONSTRUCTOR visibility:private <> () returnType:X1.X2 flags:primary
         BLOCK_BODY
           DELEGATING_CONSTRUCTOR_CALL 'constructor Any()'
           INSTANCE_INITIALIZER_CALL classDescriptor='X2'
       PROPERTY name:x2 type:kotlin.Int visibility:public modality:FINAL flags:var
-        FIELD PROPERTY_BACKING_FIELD name:x2 type:kotlin.Int visibility:public
+        FIELD PROPERTY_BACKING_FIELD name:x2 type:kotlin.Int visibility:public flags:
           EXPRESSION_BODY
             CONST Int type=kotlin.Int value=0
         FUN DEFAULT_PROPERTY_ACCESSOR name:<get-x2> visibility:public modality:FINAL <> ($this:X1.X2) returnType:Int flags:
+          correspondingProperty: PROPERTY name:x2 type:kotlin.Int visibility:public modality:FINAL flags:var
           $this: VALUE_PARAMETER name:<this> type:X1.X2 flags:
           BLOCK_BODY
             RETURN type=kotlin.Nothing from='<get-x2>(): Int'
               GET_FIELD 'x2: Int' type=kotlin.Int origin=null
                 receiver: GET_VAR 'this@X2: X2' type=X1.X2 origin=null
         FUN DEFAULT_PROPERTY_ACCESSOR name:<set-x2> visibility:public modality:FINAL <> ($this:X1.X2, <set-?>:kotlin.Int) returnType:Unit flags:
+          correspondingProperty: PROPERTY name:x2 type:kotlin.Int visibility:public modality:FINAL flags:var
           $this: VALUE_PARAMETER name:<this> type:X1.X2 flags:
           VALUE_PARAMETER name:<set-?> index:0 type:kotlin.Int flags:
           BLOCK_BODY
@@ -53,21 +57,23 @@ FILE fqName:<root> fileName:/complexAugmentedAssignment.kt
         $this: VALUE_PARAMETER INSTANCE_RECEIVER name:<this> type:X1.X2.X3 flags:
         superClasses:
           CLASS IR_EXTERNAL_DECLARATION_STUB CLASS name:Any modality:OPEN visibility:public flags:
-        CONSTRUCTOR visibility:private <> () returnType:X1.X2.X3 flags:
+        CONSTRUCTOR visibility:private <> () returnType:X1.X2.X3 flags:primary
           BLOCK_BODY
             DELEGATING_CONSTRUCTOR_CALL 'constructor Any()'
             INSTANCE_INITIALIZER_CALL classDescriptor='X3'
         PROPERTY name:x3 type:kotlin.Int visibility:public modality:FINAL flags:var
-          FIELD PROPERTY_BACKING_FIELD name:x3 type:kotlin.Int visibility:public
+          FIELD PROPERTY_BACKING_FIELD name:x3 type:kotlin.Int visibility:public flags:
             EXPRESSION_BODY
               CONST Int type=kotlin.Int value=0
           FUN DEFAULT_PROPERTY_ACCESSOR name:<get-x3> visibility:public modality:FINAL <> ($this:X1.X2.X3) returnType:Int flags:
+            correspondingProperty: PROPERTY name:x3 type:kotlin.Int visibility:public modality:FINAL flags:var
             $this: VALUE_PARAMETER name:<this> type:X1.X2.X3 flags:
             BLOCK_BODY
               RETURN type=kotlin.Nothing from='<get-x3>(): Int'
                 GET_FIELD 'x3: Int' type=kotlin.Int origin=null
                   receiver: GET_VAR 'this@X3: X3' type=X1.X2.X3 origin=null
           FUN DEFAULT_PROPERTY_ACCESSOR name:<set-x3> visibility:public modality:FINAL <> ($this:X1.X2.X3, <set-?>:kotlin.Int) returnType:Unit flags:
+            correspondingProperty: PROPERTY name:x3 type:kotlin.Int visibility:public modality:FINAL flags:var
             $this: VALUE_PARAMETER name:<this> type:X1.X2.X3 flags:
             VALUE_PARAMETER name:<set-?> index:0 type:kotlin.Int flags:
             BLOCK_BODY
@@ -76,42 +82,42 @@ FILE fqName:<root> fileName:/complexAugmentedAssignment.kt
                 value: GET_VAR 'value-parameter <set-?>: Int' type=kotlin.Int origin=null
         FUN FAKE_OVERRIDE name:equals visibility:public modality:OPEN <> ($this:kotlin.Any, other:kotlin.Any?) returnType:Boolean flags:
           overridden:
-            FUN IR_EXTERNAL_DECLARATION_STUB name:equals visibility:public modality:OPEN <> (other:kotlin.Any?) returnType:Boolean flags:
+            FUN IR_EXTERNAL_DECLARATION_STUB name:equals visibility:public modality:OPEN <> ($this:kotlin.Any, other:kotlin.Any?) returnType:Boolean flags:
           $this: VALUE_PARAMETER name:<this> type:kotlin.Any flags:
           VALUE_PARAMETER name:other index:0 type:kotlin.Any? flags:
         FUN FAKE_OVERRIDE name:hashCode visibility:public modality:OPEN <> ($this:kotlin.Any) returnType:Int flags:
           overridden:
-            FUN IR_EXTERNAL_DECLARATION_STUB name:hashCode visibility:public modality:OPEN <> () returnType:Int flags:
+            FUN IR_EXTERNAL_DECLARATION_STUB name:hashCode visibility:public modality:OPEN <> ($this:kotlin.Any) returnType:Int flags:
           $this: VALUE_PARAMETER name:<this> type:kotlin.Any flags:
         FUN FAKE_OVERRIDE name:toString visibility:public modality:OPEN <> ($this:kotlin.Any) returnType:String flags:
           overridden:
-            FUN IR_EXTERNAL_DECLARATION_STUB name:toString visibility:public modality:OPEN <> () returnType:String flags:
+            FUN IR_EXTERNAL_DECLARATION_STUB name:toString visibility:public modality:OPEN <> ($this:kotlin.Any) returnType:String flags:
           $this: VALUE_PARAMETER name:<this> type:kotlin.Any flags:
       FUN FAKE_OVERRIDE name:equals visibility:public modality:OPEN <> ($this:kotlin.Any, other:kotlin.Any?) returnType:Boolean flags:
         overridden:
-          FUN IR_EXTERNAL_DECLARATION_STUB name:equals visibility:public modality:OPEN <> (other:kotlin.Any?) returnType:Boolean flags:
+          FUN IR_EXTERNAL_DECLARATION_STUB name:equals visibility:public modality:OPEN <> ($this:kotlin.Any, other:kotlin.Any?) returnType:Boolean flags:
         $this: VALUE_PARAMETER name:<this> type:kotlin.Any flags:
         VALUE_PARAMETER name:other index:0 type:kotlin.Any? flags:
       FUN FAKE_OVERRIDE name:hashCode visibility:public modality:OPEN <> ($this:kotlin.Any) returnType:Int flags:
         overridden:
-          FUN IR_EXTERNAL_DECLARATION_STUB name:hashCode visibility:public modality:OPEN <> () returnType:Int flags:
+          FUN IR_EXTERNAL_DECLARATION_STUB name:hashCode visibility:public modality:OPEN <> ($this:kotlin.Any) returnType:Int flags:
         $this: VALUE_PARAMETER name:<this> type:kotlin.Any flags:
       FUN FAKE_OVERRIDE name:toString visibility:public modality:OPEN <> ($this:kotlin.Any) returnType:String flags:
         overridden:
-          FUN IR_EXTERNAL_DECLARATION_STUB name:toString visibility:public modality:OPEN <> () returnType:String flags:
+          FUN IR_EXTERNAL_DECLARATION_STUB name:toString visibility:public modality:OPEN <> ($this:kotlin.Any) returnType:String flags:
         $this: VALUE_PARAMETER name:<this> type:kotlin.Any flags:
     FUN FAKE_OVERRIDE name:equals visibility:public modality:OPEN <> ($this:kotlin.Any, other:kotlin.Any?) returnType:Boolean flags:
       overridden:
-        FUN IR_EXTERNAL_DECLARATION_STUB name:equals visibility:public modality:OPEN <> (other:kotlin.Any?) returnType:Boolean flags:
+        FUN IR_EXTERNAL_DECLARATION_STUB name:equals visibility:public modality:OPEN <> ($this:kotlin.Any, other:kotlin.Any?) returnType:Boolean flags:
       $this: VALUE_PARAMETER name:<this> type:kotlin.Any flags:
       VALUE_PARAMETER name:other index:0 type:kotlin.Any? flags:
     FUN FAKE_OVERRIDE name:hashCode visibility:public modality:OPEN <> ($this:kotlin.Any) returnType:Int flags:
       overridden:
-        FUN IR_EXTERNAL_DECLARATION_STUB name:hashCode visibility:public modality:OPEN <> () returnType:Int flags:
+        FUN IR_EXTERNAL_DECLARATION_STUB name:hashCode visibility:public modality:OPEN <> ($this:kotlin.Any) returnType:Int flags:
       $this: VALUE_PARAMETER name:<this> type:kotlin.Any flags:
     FUN FAKE_OVERRIDE name:toString visibility:public modality:OPEN <> ($this:kotlin.Any) returnType:String flags:
       overridden:
-        FUN IR_EXTERNAL_DECLARATION_STUB name:toString visibility:public modality:OPEN <> () returnType:String flags:
+        FUN IR_EXTERNAL_DECLARATION_STUB name:toString visibility:public modality:OPEN <> ($this:kotlin.Any) returnType:String flags:
       $this: VALUE_PARAMETER name:<this> type:kotlin.Any flags:
   FUN name:test1 visibility:public modality:FINAL <> (a:kotlin.IntArray) returnType:Unit flags:
     VALUE_PARAMETER name:a index:0 type:kotlin.IntArray flags:
@@ -189,7 +195,7 @@ FILE fqName:<root> fileName:/complexAugmentedAssignment.kt
     $this: VALUE_PARAMETER INSTANCE_RECEIVER name:<this> type:B flags:
     superClasses:
       CLASS IR_EXTERNAL_DECLARATION_STUB CLASS name:Any modality:OPEN visibility:public flags:
-    CONSTRUCTOR visibility:public <> (s:kotlin.Int) returnType:B flags:
+    CONSTRUCTOR visibility:public <> (s:kotlin.Int) returnType:B flags:primary
       VALUE_PARAMETER name:s index:0 type:kotlin.Int flags:
         EXPRESSION_BODY
           CONST Int type=kotlin.Int value=0
@@ -197,16 +203,18 @@ FILE fqName:<root> fileName:/complexAugmentedAssignment.kt
         DELEGATING_CONSTRUCTOR_CALL 'constructor Any()'
         INSTANCE_INITIALIZER_CALL classDescriptor='B'
     PROPERTY name:s type:kotlin.Int visibility:public modality:FINAL flags:var
-      FIELD PROPERTY_BACKING_FIELD name:s type:kotlin.Int visibility:public
+      FIELD PROPERTY_BACKING_FIELD name:s type:kotlin.Int visibility:public flags:
         EXPRESSION_BODY
           GET_VAR 'value-parameter s: Int = ...' type=kotlin.Int origin=INITIALIZE_PROPERTY_FROM_PARAMETER
       FUN DEFAULT_PROPERTY_ACCESSOR name:<get-s> visibility:public modality:FINAL <> ($this:B) returnType:Int flags:
+        correspondingProperty: PROPERTY name:s type:kotlin.Int visibility:public modality:FINAL flags:var
         $this: VALUE_PARAMETER name:<this> type:B flags:
         BLOCK_BODY
           RETURN type=kotlin.Nothing from='<get-s>(): Int'
             GET_FIELD 's: Int' type=kotlin.Int origin=null
               receiver: GET_VAR 'this@B: B' type=B origin=null
       FUN DEFAULT_PROPERTY_ACCESSOR name:<set-s> visibility:public modality:FINAL <> ($this:B, <set-?>:kotlin.Int) returnType:Unit flags:
+        correspondingProperty: PROPERTY name:s type:kotlin.Int visibility:public modality:FINAL flags:var
         $this: VALUE_PARAMETER name:<this> type:B flags:
         VALUE_PARAMETER name:<set-?> index:0 type:kotlin.Int flags:
         BLOCK_BODY
@@ -215,22 +223,22 @@ FILE fqName:<root> fileName:/complexAugmentedAssignment.kt
             value: GET_VAR 'value-parameter <set-?>: Int' type=kotlin.Int origin=null
     FUN FAKE_OVERRIDE name:equals visibility:public modality:OPEN <> ($this:kotlin.Any, other:kotlin.Any?) returnType:Boolean flags:
       overridden:
-        FUN IR_EXTERNAL_DECLARATION_STUB name:equals visibility:public modality:OPEN <> (other:kotlin.Any?) returnType:Boolean flags:
+        FUN IR_EXTERNAL_DECLARATION_STUB name:equals visibility:public modality:OPEN <> ($this:kotlin.Any, other:kotlin.Any?) returnType:Boolean flags:
       $this: VALUE_PARAMETER name:<this> type:kotlin.Any flags:
       VALUE_PARAMETER name:other index:0 type:kotlin.Any? flags:
     FUN FAKE_OVERRIDE name:hashCode visibility:public modality:OPEN <> ($this:kotlin.Any) returnType:Int flags:
       overridden:
-        FUN IR_EXTERNAL_DECLARATION_STUB name:hashCode visibility:public modality:OPEN <> () returnType:Int flags:
+        FUN IR_EXTERNAL_DECLARATION_STUB name:hashCode visibility:public modality:OPEN <> ($this:kotlin.Any) returnType:Int flags:
       $this: VALUE_PARAMETER name:<this> type:kotlin.Any flags:
     FUN FAKE_OVERRIDE name:toString visibility:public modality:OPEN <> ($this:kotlin.Any) returnType:String flags:
       overridden:
-        FUN IR_EXTERNAL_DECLARATION_STUB name:toString visibility:public modality:OPEN <> () returnType:String flags:
+        FUN IR_EXTERNAL_DECLARATION_STUB name:toString visibility:public modality:OPEN <> ($this:kotlin.Any) returnType:String flags:
       $this: VALUE_PARAMETER name:<this> type:kotlin.Any flags:
   CLASS OBJECT name:Host modality:FINAL visibility:public flags:
     $this: VALUE_PARAMETER INSTANCE_RECEIVER name:<this> type:Host flags:
     superClasses:
       CLASS IR_EXTERNAL_DECLARATION_STUB CLASS name:Any modality:OPEN visibility:public flags:
-    CONSTRUCTOR visibility:private <> () returnType:Host flags:
+    CONSTRUCTOR visibility:private <> () returnType:Host flags:primary
       BLOCK_BODY
         DELEGATING_CONSTRUCTOR_CALL 'constructor Any()'
         INSTANCE_INITIALIZER_CALL classDescriptor='Host'
@@ -251,16 +259,16 @@ FILE fqName:<root> fileName:/complexAugmentedAssignment.kt
                 $this: GET_VAR 'value-parameter b: B' type=B origin=null
     FUN FAKE_OVERRIDE name:equals visibility:public modality:OPEN <> ($this:kotlin.Any, other:kotlin.Any?) returnType:Boolean flags:
       overridden:
-        FUN IR_EXTERNAL_DECLARATION_STUB name:equals visibility:public modality:OPEN <> (other:kotlin.Any?) returnType:Boolean flags:
+        FUN IR_EXTERNAL_DECLARATION_STUB name:equals visibility:public modality:OPEN <> ($this:kotlin.Any, other:kotlin.Any?) returnType:Boolean flags:
       $this: VALUE_PARAMETER name:<this> type:kotlin.Any flags:
       VALUE_PARAMETER name:other index:0 type:kotlin.Any? flags:
     FUN FAKE_OVERRIDE name:hashCode visibility:public modality:OPEN <> ($this:kotlin.Any) returnType:Int flags:
       overridden:
-        FUN IR_EXTERNAL_DECLARATION_STUB name:hashCode visibility:public modality:OPEN <> () returnType:Int flags:
+        FUN IR_EXTERNAL_DECLARATION_STUB name:hashCode visibility:public modality:OPEN <> ($this:kotlin.Any) returnType:Int flags:
       $this: VALUE_PARAMETER name:<this> type:kotlin.Any flags:
     FUN FAKE_OVERRIDE name:toString visibility:public modality:OPEN <> ($this:kotlin.Any) returnType:String flags:
       overridden:
-        FUN IR_EXTERNAL_DECLARATION_STUB name:toString visibility:public modality:OPEN <> () returnType:String flags:
+        FUN IR_EXTERNAL_DECLARATION_STUB name:toString visibility:public modality:OPEN <> ($this:kotlin.Any) returnType:String flags:
       $this: VALUE_PARAMETER name:<this> type:kotlin.Any flags:
   FUN name:test3 visibility:public modality:FINAL <> ($receiver:Host, v:B) returnType:Unit flags:
     $receiver: VALUE_PARAMETER name:<this> type:Host flags:

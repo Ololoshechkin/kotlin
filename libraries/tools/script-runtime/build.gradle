@@ -1,13 +1,18 @@
 description 'Kotlin Script Runtime'
 
 apply plugin: 'kotlin'
+apply plugin: 'pill-configurable'
 
 configureJvm6Project(project)
 configureDist(project)
 configurePublishing(project)
 
+pill {
+    importAsLibrary = true
+}
+
 dependencies {
-    compileOnly project(':kotlin-stdlib')
+    compileOnly project(path: ':kotlin-stdlib', configuration: 'distJar')
 }
 
 configurations {
@@ -43,3 +48,6 @@ compileKotlin {
             "-module-name", project.name
     ]
 }
+
+kotlin.experimental.coroutines 'enable'
+

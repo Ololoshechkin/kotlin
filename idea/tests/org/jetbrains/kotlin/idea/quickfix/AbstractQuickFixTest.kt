@@ -26,12 +26,10 @@ import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.openapi.vfs.CharsetToolkit
 import com.intellij.rt.execution.junit.FileComparisonFailure
-import com.intellij.testFramework.InspectionTestUtil
-import com.intellij.testFramework.LightPlatformTestCase
-import com.intellij.testFramework.LightProjectDescriptor
-import com.intellij.testFramework.UsefulTestCase
+import com.intellij.testFramework.*
 import com.intellij.util.ui.UIUtil
 import junit.framework.TestCase
+import org.jetbrains.kotlin.idea.facet.KotlinFacet
 import org.jetbrains.kotlin.idea.quickfix.utils.findInspectionFile
 import org.jetbrains.kotlin.idea.test.*
 import org.jetbrains.kotlin.psi.KtFile
@@ -44,12 +42,18 @@ abstract class AbstractQuickFixTest : KotlinLightCodeInsightFixtureTestCase() {
     @Throws(Exception::class)
     protected fun doTest(beforeFileName: String) {
         val beforeFileText = FileUtil.loadFile(File(beforeFileName))
-        configureLanguageVersion(beforeFileText, project, module)
+        configureCompilerOptions(beforeFileText, project, module)
 
-        enableInspections(beforeFileName, beforeFileText)
+        val inspections = parceInspectionsToEnable(beforeFileName, beforeFileText).toTypedArray()
 
-        doKotlinQuickFixTest(beforeFileName)
-        checkForUnexpectedErrors()
+        try {
+            myFixture.enableInspections(*inspections)
+
+            doKotlinQuickFixTest(beforeFileName)
+            checkForUnexpectedErrors()
+        } finally {
+            myFixture.disableInspections(*inspections)
+        }
     }
 
     override fun getProjectDescriptor(): LightProjectDescriptor {
@@ -111,6 +115,13 @@ abstract class AbstractQuickFixTest : KotlinLightCodeInsightFixtureTestCase() {
 
                 applyAction(contents, fileName)
 
+                val compilerArgumentsAfter = InTextDirectivesUtils.findStringWithPrefixes(fileText, "COMPILER_ARGUMENTS_AFTER: ")
+                if (compilerArgumentsAfter != null) {
+                    val facetSettings = KotlinFacet.get(module)!!.configuration.settings
+                    val compilerSettings = facetSettings.compilerSettings
+                    TestCase.assertEquals(compilerArgumentsAfter, compilerSettings?.additionalArguments)
+                }
+
                 UsefulTestCase.assertEmpty(expectedErrorMessage)
             }
             catch (e: FileComparisonFailure) {
@@ -160,7 +171,7 @@ abstract class AbstractQuickFixTest : KotlinLightCodeInsightFixtureTestCase() {
         }
     }
 
-    private fun enableInspections(beforeFileName: String, beforeFileText: String) {
+    private fun parceInspectionsToEnable(beforeFileName: String, beforeFileText: String): List<InspectionProfileEntry> {
         val toolsStrings = InTextDirectivesUtils.findListWithPrefixes(beforeFileText, "TOOL:")
         if (toolsStrings.isNotEmpty()) {
             val inspections =  toolsStrings.map { toolFqName ->
@@ -172,18 +183,17 @@ abstract class AbstractQuickFixTest : KotlinLightCodeInsightFixtureTestCase() {
                     throw IllegalArgumentException("Failed to create inspection for key '$toolFqName'", e)
                 }
             }
-            myFixture.enableInspections(*inspections.toTypedArray())
-            return
+            return inspections
         }
 
         val inspectionFile = findInspectionFile(File(beforeFileName).parentFile)
         if (inspectionFile != null) {
             val className = FileUtil.loadFile(inspectionFile).trim { it <= ' ' }
             val inspectionClass = Class.forName(className) as Class<InspectionProfileEntry>
-            val tools = InspectionTestUtil.instantiateTools(
-                    listOf<Class<out InspectionProfileEntry>>(inspectionClass))
-            myFixture.enableInspections(*tools.toTypedArray())
+            return InspectionTestUtil.instantiateTools(listOf<Class<out InspectionProfileEntry>>(inspectionClass))
         }
+
+        return emptyList()
     }
 
     @Throws(ClassNotFoundException::class)

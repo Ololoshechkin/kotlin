@@ -11,7 +11,10 @@ import org.jetbrains.kotlin.cli.common.arguments.K2JVMCompilerArguments
 import org.jetbrains.kotlin.compilerRunner.GradleCompilerEnvironment
 import org.jetbrains.kotlin.compilerRunner.GradleCompilerRunner
 import org.jetbrains.kotlin.compilerRunner.OutputItemsCollectorImpl
+import org.jetbrains.kotlin.gradle.plugin.PLUGIN_CLASSPATH_CONFIGURATION_NAME
 import org.jetbrains.kotlin.gradle.tasks.*
+import org.jetbrains.kotlin.incremental.isJavaFile
+import org.jetbrains.kotlin.incremental.toSortedPathsArray
 import java.io.File
 
 @CacheableTask
@@ -36,14 +39,12 @@ open class KaptTask : ConventionTask(), CompilerArgumentAwareWithInput<K2JVMComp
     @get:Internal
     internal lateinit var stubsDir: File
 
-    private fun isInsideDestinationDirs(file: File): Boolean {
-        return FileUtil.isAncestor(destinationDir, file, /* strict = */ false)
-                || FileUtil.isAncestor(classesDir, file, /* strict = */ false)
-    }
-
     @get:Classpath @get:InputFiles
     val kaptClasspath: FileCollection
         get() = project.files(*kaptClasspathConfigurations.toTypedArray())
+
+    @get:Classpath @get:InputFiles
+    val compilerClasspath: List<File> get() = kotlinCompileTask.computedCompilerClasspath
 
     @get:Internal
     internal lateinit var kaptClasspathConfigurations: List<Configuration>
@@ -57,12 +58,15 @@ open class KaptTask : ConventionTask(), CompilerArgumentAwareWithInput<K2JVMComp
     @get:OutputDirectory
     lateinit var kotlinSourcesDestinationDir: File
 
+    @get:Nested
+    internal val annotationProcessorOptionProviders: MutableList<Any> = mutableListOf()
+
     override fun createCompilerArgs(): K2JVMCompilerArguments = K2JVMCompilerArguments()
 
     override fun setupCompilerArgs(args: K2JVMCompilerArguments, defaultsOnly: Boolean) {
         kotlinCompileTask.setupCompilerArgs(args)
 
-        args.pluginClasspaths = (pluginClasspath + args.pluginClasspaths!!).toSet().toTypedArray()
+        args.pluginClasspaths = pluginClasspath.toSortedPathsArray()
 
         val pluginOptionsWithKapt: CompilerPluginOptions = pluginOptions.withWrappedKaptOptions(withApClasspath = kaptClasspath)
         args.pluginOptions = (pluginOptionsWithKapt.arguments + args.pluginOptions!!).toTypedArray()
@@ -77,56 +81,53 @@ open class KaptTask : ConventionTask(), CompilerArgumentAwareWithInput<K2JVMComp
     @get:Internal
     var useBuildCache: Boolean = false
 
-    @get:Classpath @get:InputFiles @Suppress("unused")
-    internal val kotlinTaskPluginClasspaths get() = kotlinCompileTask.pluginClasspath
-
-    @get:Classpath @get:InputFiles
-    internal val pluginClasspath get() = pluginOptions.classpath
+    @get:Classpath
+    @get:InputFiles
+    val pluginClasspath: FileCollection
+        get() = project.configurations.getByName(PLUGIN_CLASSPATH_CONFIGURATION_NAME)
 
     @get:InputFiles @get:PathSensitive(PathSensitivity.RELATIVE)
-    val source: FileCollection
+    val source: Collection<File>
         get() {
-            val sourcesFromKotlinTask = kotlinCompileTask.source
-                    .filter { it.extension == "java" && !isInsideDestinationDirs(it) }
-
-            val stubSources = project.fileTree(stubsDir)
-            return sourcesFromKotlinTask + stubSources
+            val result = HashSet<File>()
+            for (root in javaSourceRoots) {
+                root.walk().filterTo(result) { it.isJavaFile() }
+            }
+            return result
         }
+
+    private val javaSourceRoots: Set<File>
+        get() = (kotlinCompileTask.sourceRootsContainer.sourceRoots + stubsDir)
+            .filterTo(HashSet(), ::isRootAllowed)
+
+    private fun isRootAllowed(file: File): Boolean =
+        !FileUtil.isAncestor(destinationDir, file, /* strict = */ false) &&
+                !FileUtil.isAncestor(classesDir, file, /* strict = */ false)
 
     @TaskAction
     fun compile() {
         /** Delete everything inside generated sources and classes output directory
          * (annotation processing is not incremental) */
-        destinationDir.clearDirectory()
-        classesDir.clearDirectory()
-        kotlinSourcesDestinationDir.clearDirectory()
-
-        val sourceRootsFromKotlin = kotlinCompileTask.sourceRootsContainer.sourceRoots
-        val rawSourceRoots = FilteringSourceRootsContainer(sourceRootsFromKotlin, { !isInsideDestinationDirs(it) })
-        val sourceRoots = SourceRoots.ForJvm.create(kotlinCompileTask.source, rawSourceRoots)
+        clearOutputDirectories()
 
         val args = prepareCompilerArguments()
 
         val messageCollector = GradleMessageCollector(logger)
         val outputItemCollector = OutputItemsCollectorImpl()
-        val environment = GradleCompilerEnvironment(kotlinCompileTask.computedCompilerClasspath, messageCollector, outputItemCollector, args)
+        val environment = GradleCompilerEnvironment(compilerClasspath, messageCollector, outputItemCollector, args)
         if (environment.toolsJar == null && !isAtLeastJava9) {
             throw GradleException("Could not find tools.jar in system classpath, which is required for kapt to work")
         }
 
         val compilerRunner = GradleCompilerRunner(project)
         val exitCode = compilerRunner.runJvmCompiler(
-                sourceRoots.kotlinSourceFiles,
-                sourceRoots.javaSourceRoots,
-                kotlinCompileTask.javaPackagePrefix,
-                args,
-                environment)
+            sourcesToCompile = emptyList(),
+            javaSourceRoots = javaSourceRoots,
+            javaPackagePrefix = kotlinCompileTask.javaPackagePrefix,
+            args = args,
+            environment = environment
+        )
         throwGradleExceptionIfError(exitCode)
-    }
-
-    private fun File.clearDirectory() {
-        deleteRecursively()
-        mkdirs()
     }
 
     private val isAtLeastJava9: Boolean

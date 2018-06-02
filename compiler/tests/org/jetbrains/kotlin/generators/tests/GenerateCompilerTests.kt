@@ -27,6 +27,7 @@ import org.jetbrains.kotlin.cli.AbstractCliTest
 import org.jetbrains.kotlin.codegen.*
 import org.jetbrains.kotlin.codegen.defaultConstructor.AbstractDefaultArgumentsReflectionTest
 import org.jetbrains.kotlin.codegen.flags.AbstractWriteFlagsTest
+import org.jetbrains.kotlin.codegen.AbstractCustomScriptCodegenTest
 import org.jetbrains.kotlin.codegen.ir.AbstractIrBlackBoxCodegenTest
 import org.jetbrains.kotlin.codegen.ir.AbstractIrBlackBoxInlineCodegenTest
 import org.jetbrains.kotlin.codegen.ir.AbstractIrCompileKotlinAgainstInlineKotlinTest
@@ -179,6 +180,10 @@ fun main(args: Array<String>) {
 
         testClass<AbstractScriptCodegenTest> {
             model("codegen/script", extension = "kts")
+        }
+
+        testClass<AbstractCustomScriptCodegenTest> {
+            model("codegen/customScript", extension = "kts")
         }
 
         testClass<AbstractBytecodeTextTest> {

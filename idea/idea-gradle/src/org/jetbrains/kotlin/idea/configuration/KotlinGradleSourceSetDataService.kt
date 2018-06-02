@@ -47,6 +47,7 @@ import org.jetbrains.kotlin.idea.framework.detectLibraryKind
 import org.jetbrains.kotlin.idea.inspections.gradle.findAll
 import org.jetbrains.kotlin.idea.inspections.gradle.findKotlinPluginVersion
 import org.jetbrains.kotlin.idea.inspections.gradle.getResolvedKotlinStdlibVersionByModuleData
+import org.jetbrains.kotlin.idea.roots.migrateNonJvmSourceFolders
 import org.jetbrains.plugins.gradle.model.data.BuildScriptClasspathData
 import org.jetbrains.plugins.gradle.model.data.GradleSourceSetData
 import java.io.File
@@ -214,12 +215,16 @@ private fun configureFacetByGradleModule(
     }
 
     with(kotlinFacet.configuration.settings) {
-        implementedModuleName = (sourceSetNode ?: moduleNode).implementedModuleName
+        implementedModuleNames = (sourceSetNode ?: moduleNode).implementedModuleNames
         productionOutputPath = getExplicitOutputPath(moduleNode, platformKind, "main")
         testOutputPath = getExplicitOutputPath(moduleNode, platformKind, "test")
     }
 
     kotlinFacet.noVersionAutoAdvance()
+
+    if (platformKind != null && platformKind !is TargetPlatformKind.Jvm) {
+        migrateNonJvmSourceFolders(modelsProvider.getModifiableRootModel(ideModule))
+    }
 
     return kotlinFacet
 }

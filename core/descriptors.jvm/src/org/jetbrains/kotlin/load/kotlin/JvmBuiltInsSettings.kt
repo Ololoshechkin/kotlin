@@ -42,6 +42,7 @@ import org.jetbrains.kotlin.resolve.descriptorUtil.fqNameUnsafe
 import org.jetbrains.kotlin.resolve.jvm.JvmPrimitiveType
 import org.jetbrains.kotlin.resolve.scopes.MemberScope
 import org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedClassDescriptor
+import org.jetbrains.kotlin.serialization.deserialization.getName
 import org.jetbrains.kotlin.storage.LockBasedStorageManager
 import org.jetbrains.kotlin.storage.StorageManager
 import org.jetbrains.kotlin.storage.getValue
@@ -90,7 +91,7 @@ open class JvmBuiltInsSettings(
 
         val mockSerializableClass = ClassDescriptorImpl(
                 mockJavaIoPackageFragment, Name.identifier("Serializable"), Modality.ABSTRACT, ClassKind.INTERFACE, superTypes,
-                SourceElement.NO_SOURCE, /* isExternal = */ false
+                SourceElement.NO_SOURCE, /* isExternal = */ false, this
         )
 
         mockSerializableClass.initialize(MemberScope.Empty, emptySet(), null)
@@ -136,7 +137,6 @@ open class JvmBuiltInsSettings(
                 setOwner(classDescriptor)
                 setDispatchReceiverParameter(classDescriptor.thisAsReceiverParameter)
                 setPreserveSourceElement()
-                setSubstitution(UnsafeVarianceTypeSubstitution(moduleDescriptor.builtIns))
 
                 val memberStatus = additionalMember.getJdkMethodStatus()
                 when (memberStatus) {

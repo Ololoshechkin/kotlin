@@ -5,6 +5,8 @@
 
 package org.jetbrains.kotlin.idea.compiler.configuration;
 
+import com.intellij.icons.AllIcons;
+import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.components.ServiceManager;
 import com.intellij.openapi.fileChooser.FileChooserDescriptor;
 import com.intellij.openapi.module.Module;
@@ -37,7 +39,7 @@ import org.jetbrains.kotlin.cli.common.arguments.K2JsArgumentConstants;
 import org.jetbrains.kotlin.config.*;
 import org.jetbrains.kotlin.idea.KotlinBundle;
 import org.jetbrains.kotlin.idea.PluginStartupComponent;
-import org.jetbrains.kotlin.idea.actions.internal.KotlinInternalMode;
+import org.jetbrains.kotlin.idea.core.script.settings.KotlinScriptingSettings;
 import org.jetbrains.kotlin.idea.facet.DescriptionListCellRenderer;
 import org.jetbrains.kotlin.idea.facet.KotlinFacet;
 import org.jetbrains.kotlin.idea.util.application.ApplicationUtilsKt;
@@ -88,6 +90,7 @@ public class KotlinCompilerConfigurableTab implements SearchableConfigurable, Co
     private ThreeStateCheckBox keepAliveCheckBox;
     private JCheckBox enablePreciseIncrementalCheckBox;
     private JComboBox moduleKindComboBox;
+    private JCheckBox scriptDependenciesAutoReload;
     private JTextField scriptTemplatesField;
     private JTextField scriptTemplatesClasspathField;
     private JLabel scriptTemplatesLabel;
@@ -123,6 +126,8 @@ public class KotlinCompilerConfigurableTab implements SearchableConfigurable, Co
         this.compilerWorkspaceSettings = compilerWorkspaceSettings;
         this.k2jvmCompilerArguments = k2jvmCompilerArguments;
         this.isProjectSettings = isProjectSettings;
+
+        warningLabel.setIcon(AllIcons.General.WarningDialog);
 
         if (isProjectSettings) {
             languageVersionComboBox.addActionListener(
@@ -350,7 +355,7 @@ public class KotlinCompilerConfigurableTab implements SearchableConfigurable, Co
         apiVersionComboBox.addItem(VersionView.LatestStable.INSTANCE);
 
         for (LanguageVersion version : LanguageVersion.values()) {
-            if (!version.isStable() && !KotlinInternalMode.Instance.getEnabled()) {
+            if (!version.isStable() && !ApplicationManager.getApplication().isInternal()) {
                 continue;
             }
 
@@ -426,6 +431,7 @@ public class KotlinCompilerConfigurableTab implements SearchableConfigurable, Co
                !getSelectedAPIVersionView().equals(KotlinFacetSettingsKt.getApiVersionView(commonCompilerArguments)) ||
                !coroutineSupportComboBox.getSelectedItem().equals(CoroutineSupport.byCompilerArguments(commonCompilerArguments)) ||
                !additionalArgsOptionsField.getText().equals(compilerSettings.getAdditionalArguments()) ||
+               isModified(scriptDependenciesAutoReload, getScriptingSettings().isAutoReloadEnabled()) ||
                isModified(scriptTemplatesField, compilerSettings.getScriptTemplates()) ||
                isModified(scriptTemplatesClasspathField, compilerSettings.getScriptTemplatesClasspath()) ||
                isModified(copyRuntimeFilesCheckBox, compilerSettings.getCopyJsLibraryFiles()) ||
@@ -519,6 +525,8 @@ public class KotlinCompilerConfigurableTab implements SearchableConfigurable, Co
         compilerSettings.setCopyJsLibraryFiles(copyRuntimeFilesCheckBox.isSelected());
         compilerSettings.setOutputDirectoryForJsLibraryFiles(outputDirectory.getText());
 
+        getScriptingSettings().setAutoReloadEnabled(scriptDependenciesAutoReload.isSelected());
+
         if (compilerWorkspaceSettings != null) {
             compilerWorkspaceSettings.setPreciseIncrementalEnabled(enablePreciseIncrementalCheckBox.isSelected());
 
@@ -564,6 +572,7 @@ public class KotlinCompilerConfigurableTab implements SearchableConfigurable, Co
         apiVersionComboBox.setSelectedItem(KotlinFacetSettingsKt.getApiVersionView(commonCompilerArguments));
         coroutineSupportComboBox.setSelectedItem(CoroutineSupport.byCompilerArguments(commonCompilerArguments));
         additionalArgsOptionsField.setText(compilerSettings.getAdditionalArguments());
+        scriptDependenciesAutoReload.setSelected(getScriptingSettings().isAutoReloadEnabled());
         scriptTemplatesField.setText(compilerSettings.getScriptTemplates());
         scriptTemplatesClasspathField.setText(compilerSettings.getScriptTemplatesClasspath());
         copyRuntimeFilesCheckBox.setSelected(compilerSettings.getCopyJsLibraryFiles());
@@ -697,6 +706,11 @@ public class KotlinCompilerConfigurableTab implements SearchableConfigurable, Co
 
     public void setCompilerSettings(CompilerSettings compilerSettings) {
         this.compilerSettings = compilerSettings;
+    }
+
+    @NotNull
+    private KotlinScriptingSettings getScriptingSettings() {
+        return KotlinScriptingSettings.Companion.getInstance(project);
     }
 
     private void createUIComponents() {

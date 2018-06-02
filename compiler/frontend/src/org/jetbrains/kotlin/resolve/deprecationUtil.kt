@@ -18,9 +18,9 @@ package org.jetbrains.kotlin.resolve
 
 import com.intellij.psi.PsiElement
 import org.jetbrains.kotlin.builtins.KotlinBuiltIns
-import org.jetbrains.kotlin.config.ApiVersion
 import org.jetbrains.kotlin.config.KotlinCompilerVersion
 import org.jetbrains.kotlin.config.LanguageVersionSettings
+import org.jetbrains.kotlin.config.MavenComparableVersion
 import org.jetbrains.kotlin.descriptors.*
 import org.jetbrains.kotlin.descriptors.annotations.AnnotationDescriptor
 import org.jetbrains.kotlin.descriptors.annotations.AnnotationUseSiteTarget
@@ -29,19 +29,21 @@ import org.jetbrains.kotlin.descriptors.impl.DescriptorDerivedFromTypeAlias
 import org.jetbrains.kotlin.descriptors.impl.TypeAliasConstructorDescriptor
 import org.jetbrains.kotlin.diagnostics.Diagnostic
 import org.jetbrains.kotlin.diagnostics.Errors
+import org.jetbrains.kotlin.metadata.ProtoBuf
+import org.jetbrains.kotlin.metadata.deserialization.VersionRequirement
 import org.jetbrains.kotlin.name.FqName
+import org.jetbrains.kotlin.psi.Call
 import org.jetbrains.kotlin.resolve.DeprecationLevelValue.*
 import org.jetbrains.kotlin.resolve.annotations.argumentValue
 import org.jetbrains.kotlin.resolve.calls.checkers.isOperatorMod
 import org.jetbrains.kotlin.resolve.calls.checkers.shouldWarnAboutDeprecatedModFromBuiltIns
+import org.jetbrains.kotlin.resolve.checkers.ExperimentalUsageChecker
 import org.jetbrains.kotlin.resolve.constants.AnnotationValue
 import org.jetbrains.kotlin.resolve.constants.EnumValue
 import org.jetbrains.kotlin.resolve.constants.StringValue
 import org.jetbrains.kotlin.resolve.descriptorUtil.fqNameSafe
-import org.jetbrains.kotlin.serialization.ProtoBuf
 import org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedClassDescriptor
 import org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedMemberDescriptor
-import org.jetbrains.kotlin.serialization.deserialization.descriptors.VersionRequirement
 import org.jetbrains.kotlin.storage.StorageManager
 import org.jetbrains.kotlin.types.KotlinType
 import org.jetbrains.kotlin.types.TypeUtils
@@ -210,6 +212,8 @@ class DeprecationResolver(
     @JvmOverloads
     fun isHiddenInResolution(
         descriptor: DeclarationDescriptor,
+        call: Call? = null,
+        bindingContext: BindingContext? = null,
         isSuperCall: Boolean = false
     ): Boolean {
         if (descriptor is FunctionDescriptor) {
@@ -217,7 +221,19 @@ class DeprecationResolver(
             if (descriptor.isHiddenForResolutionEverywhereBesideSupercalls && !isSuperCall) return true
         }
 
-        if (!isHiddenBecauseOfKotlinVersionAccessibility(descriptor.original)) return true
+        val sinceKotlinAccessibility = isHiddenBecauseOfKotlinVersionAccessibility(descriptor.original)
+        if (sinceKotlinAccessibility is SinceKotlinAccessibility.NotAccessible) return true
+
+        if (sinceKotlinAccessibility is SinceKotlinAccessibility.NotAccessibleButWasExperimental) {
+            if (call != null && bindingContext != null) {
+                return with(ExperimentalUsageChecker) {
+                    sinceKotlinAccessibility.markerClasses.any { classDescriptor ->
+                        !call.callElement.isExperimentalityAccepted(classDescriptor.fqNameSafe, languageVersionSettings, bindingContext)
+                    }
+                }
+            }
+            return true
+        }
 
         return isDeprecatedHidden(descriptor)
     }
@@ -287,26 +303,7 @@ class DeprecationResolver(
                 result.add(deprecation)
             }
 
-            val versionRequirement =
-                (target as? DeserializedMemberDescriptor)?.versionRequirement
-                        ?: (target as? DeserializedClassDescriptor)?.versionRequirement
-            if (versionRequirement != null) {
-                // We're using ApiVersion because it's convenient to compare versions, "-api-version" is not involved in any way
-                // TODO: usage of ApiVersion is confusing here, refactor
-                val requiredVersion = ApiVersion.createByVersionRequirement(versionRequirement)
-                val currentVersion = when (versionRequirement.kind) {
-                    ProtoBuf.VersionRequirement.VersionKind.LANGUAGE_VERSION ->
-                        ApiVersion.createByLanguageVersion(languageVersionSettings.languageVersion)
-                    ProtoBuf.VersionRequirement.VersionKind.API_VERSION ->
-                        languageVersionSettings.apiVersion
-                    ProtoBuf.VersionRequirement.VersionKind.COMPILER_VERSION ->
-                        KotlinCompilerVersion.getVersion()?.let((ApiVersion)::parse)
-                    else -> null
-                }
-                if (currentVersion != null && currentVersion < requiredVersion) {
-                    result.add(DeprecatedByVersionRequirement(versionRequirement, target))
-                }
-            }
+            getDeprecationByVersionRequirement(target)?.let(result::add)
         }
 
         fun addUseSiteTargetedDeprecationIfPresent(annotatedDescriptor: DeclarationDescriptor, useSiteTarget: AnnotationUseSiteTarget?) {
@@ -344,5 +341,32 @@ class DeprecationResolver(
         }
 
         return result.distinct()
+    }
+
+    private fun getDeprecationByVersionRequirement(target: DeclarationDescriptor): DeprecatedByVersionRequirement? {
+        fun createVersion(version: String): MavenComparableVersion? = try {
+            MavenComparableVersion(version)
+        } catch (e: Exception) {
+            null
+        }
+
+        val versionRequirement =
+            (target as? DeserializedMemberDescriptor)?.versionRequirement
+                    ?: (target as? DeserializedClassDescriptor)?.versionRequirement
+                    ?: return null
+        val requiredVersion = createVersion(versionRequirement.version.asString())
+        val currentVersion = when (versionRequirement.kind) {
+            ProtoBuf.VersionRequirement.VersionKind.LANGUAGE_VERSION ->
+                MavenComparableVersion(languageVersionSettings.languageVersion.versionString)
+            ProtoBuf.VersionRequirement.VersionKind.API_VERSION ->
+                languageVersionSettings.apiVersion.version
+            ProtoBuf.VersionRequirement.VersionKind.COMPILER_VERSION ->
+                KotlinCompilerVersion.getVersion()?.substringBefore('-')?.let(::createVersion)
+            else -> null
+        }
+        if (currentVersion != null && currentVersion < requiredVersion) {
+            return DeprecatedByVersionRequirement(versionRequirement, target)
+        }
+        return null
     }
 }

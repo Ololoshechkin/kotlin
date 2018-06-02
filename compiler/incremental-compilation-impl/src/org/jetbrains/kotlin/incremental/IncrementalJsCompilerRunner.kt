@@ -27,6 +27,7 @@ import org.jetbrains.kotlin.config.Services
 import org.jetbrains.kotlin.incremental.components.ExpectActualTracker
 import org.jetbrains.kotlin.incremental.components.LookupTracker
 import org.jetbrains.kotlin.incremental.js.*
+import org.jetbrains.kotlin.name.FqName
 import java.io.File
 
 fun makeJsIncrementally(
@@ -66,9 +67,7 @@ class IncrementalJsCompilerRunner(
         workingDir,
         "caches-js",
         cacheVersions,
-        reporter,
-        artifactChangesProvider = null,
-        changesRegistry = null
+        reporter
 ) {
     override fun isICEnabled(): Boolean =
         IncrementalCompilation.isEnabled() && IncrementalCompilation.isEnabledForJs()
@@ -92,7 +91,29 @@ class IncrementalJsCompilerRunner(
 
         if (changedLib != null) return CompilationMode.Rebuild { "Library has been changed: $changedLib" }
 
-        return CompilationMode.Incremental(getDirtyFiles(changedFiles))
+        val dirtyFiles = getDirtyFiles(changedFiles)
+
+        // todo: unify with JVM calculateSourcesToCompile
+        fun markDirtyBy(lookupSymbols: Collection<LookupSymbol>) {
+            if (lookupSymbols.isEmpty()) return
+
+            val dirtyFilesFromLookups = mapLookupSymbolsToFiles(caches.lookupCache, lookupSymbols, reporter)
+            dirtyFiles.addAll(dirtyFilesFromLookups)
+        }
+
+        fun markDirtyBy(dirtyClassesFqNames: Collection<FqName>) {
+            if (dirtyClassesFqNames.isEmpty()) return
+
+            val fqNamesWithSubtypes = dirtyClassesFqNames.flatMap { withSubtypes(it, listOf(caches.platformCache)) }
+            val dirtyFilesFromFqNames = mapClassesFqNamesToFiles(listOf(caches.platformCache), fqNamesWithSubtypes, reporter)
+            dirtyFiles.addAll(dirtyFilesFromFqNames)
+        }
+
+        val removedClassesChanges = getRemovedClassesChanges(caches, changedFiles)
+        markDirtyBy(removedClassesChanges.dirtyLookupSymbols)
+        markDirtyBy(removedClassesChanges.dirtyClassesFqNames)
+
+        return CompilationMode.Incremental(dirtyFiles)
     }
 
     override fun makeServices(

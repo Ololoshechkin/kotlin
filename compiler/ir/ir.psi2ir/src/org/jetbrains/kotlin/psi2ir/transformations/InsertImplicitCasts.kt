@@ -17,13 +17,14 @@
 package org.jetbrains.kotlin.psi2ir.transformations
 
 import org.jetbrains.kotlin.builtins.KotlinBuiltIns
+import org.jetbrains.kotlin.descriptors.ClassifierDescriptor
+import org.jetbrains.kotlin.descriptors.TypeParameterDescriptor
 import org.jetbrains.kotlin.ir.IrElement
 import org.jetbrains.kotlin.ir.IrStatement
-import org.jetbrains.kotlin.ir.declarations.IrField
-import org.jetbrains.kotlin.ir.declarations.IrFunction
-import org.jetbrains.kotlin.ir.declarations.IrVariable
+import org.jetbrains.kotlin.ir.declarations.*
 import org.jetbrains.kotlin.ir.expressions.*
 import org.jetbrains.kotlin.ir.expressions.impl.IrTypeOperatorCallImpl
+import org.jetbrains.kotlin.ir.symbols.IrTypeParameterSymbol
 import org.jetbrains.kotlin.ir.util.SymbolTable
 import org.jetbrains.kotlin.ir.visitors.IrElementTransformerVoid
 import org.jetbrains.kotlin.psi2ir.containsNull
@@ -32,6 +33,7 @@ import org.jetbrains.kotlin.types.checker.KotlinTypeChecker
 import org.jetbrains.kotlin.types.isError
 import org.jetbrains.kotlin.types.isNullabilityFlexible
 import org.jetbrains.kotlin.types.typeUtil.makeNotNullable
+import org.jetbrains.kotlin.types.typeUtil.makeNullable
 import org.jetbrains.kotlin.types.upperIfFlexible
 
 fun insertImplicitCasts(builtIns: KotlinBuiltIns, element: IrElement, symbolTable: SymbolTable) {
@@ -39,6 +41,22 @@ fun insertImplicitCasts(builtIns: KotlinBuiltIns, element: IrElement, symbolTabl
 }
 
 class InsertImplicitCasts(private val builtIns: KotlinBuiltIns, private val symbolTable: SymbolTable) : IrElementTransformerVoid() {
+
+    private val typeParameterResolver = ScopedTypeParametersResolver()
+
+    private inline fun <T> runInTypeParameterScope(typeParametersContainer: IrTypeParametersContainer, fn: () -> T): T {
+        typeParameterResolver.enterTypeParameterScope(typeParametersContainer)
+        val result = fn()
+        typeParameterResolver.leaveTypeParameterScope()
+        return result
+    }
+
+    private fun resolveScopedTypeParameter(classifier: ClassifierDescriptor): IrTypeParameterSymbol? =
+        if (classifier is TypeParameterDescriptor)
+            typeParameterResolver.resolveScopedTypeParameter(classifier)
+        else
+            null
+
     override fun visitCallableReference(expression: IrCallableReference): IrExpression =
         expression.transformPostfix {
             transformReceiverArguments()
@@ -110,10 +128,17 @@ class InsertImplicitCasts(private val builtIns: KotlinBuiltIns, private val symb
         }
 
     override fun visitFunction(declaration: IrFunction): IrStatement =
-        declaration.transformPostfix {
-            valueParameters.forEach {
-                it.defaultValue?.coerceInnerExpression(it.descriptor.type)
+        runInTypeParameterScope(declaration) {
+            declaration.transformPostfix {
+                valueParameters.forEach {
+                    it.defaultValue?.coerceInnerExpression(it.descriptor.type)
+                }
             }
+        }
+
+    override fun visitClass(declaration: IrClass): IrStatement =
+        runInTypeParameterScope(declaration) {
+            super.visitClass(declaration)
         }
 
     override fun visitWhen(expression: IrWhen): IrExpression =
@@ -179,7 +204,7 @@ class InsertImplicitCasts(private val builtIns: KotlinBuiltIns, private val symb
                 implicitCast(nonNullValueType, IrTypeOperator.IMPLICIT_NOTNULL).cast(expectedType)
             }
 
-            KotlinTypeChecker.DEFAULT.isSubtypeOf(valueType.makeNotNullable(), expectedType) ->
+            KotlinTypeChecker.DEFAULT.isSubtypeOf(valueType, expectedType.makeNullable()) ->
                 this
 
             KotlinBuiltIns.isInt(valueType) && notNullableExpectedType.isBuiltInIntegerType() ->
@@ -205,7 +230,7 @@ class InsertImplicitCasts(private val builtIns: KotlinBuiltIns, private val symb
         return IrTypeOperatorCallImpl(
             startOffset, endOffset,
             targetType, typeOperator, targetType, this,
-            symbolTable.referenceClassifier(typeDescriptor)
+            resolveScopedTypeParameter(typeDescriptor) ?: symbolTable.referenceClassifier(typeDescriptor)
         )
     }
 

@@ -16,7 +16,7 @@
 
 package org.jetbrains.kotlin.utils
 
-import org.jetbrains.kotlin.serialization.deserialization.BinaryVersion
+import org.jetbrains.kotlin.metadata.deserialization.BinaryVersion
 import java.io.DataInputStream
 import java.io.File
 import java.io.InputStream
@@ -32,7 +32,7 @@ class JsMetadataVersion(vararg numbers: Int) : BinaryVersion(*numbers) {
 
     companion object {
         @JvmField
-        val INSTANCE = JsMetadataVersion(1, 2, 0)
+        val INSTANCE = JsMetadataVersion(1, 2, 1)
 
         @JvmField
         val INVALID_VERSION = JsMetadataVersion()

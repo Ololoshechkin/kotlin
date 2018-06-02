@@ -15,6 +15,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.kotlin.builtins.KotlinBuiltIns;
 import org.jetbrains.kotlin.builtins.PrimitiveType;
+import org.jetbrains.kotlin.codegen.coroutines.CoroutineCodegenUtilKt;
 import org.jetbrains.kotlin.codegen.intrinsics.IntrinsicMethods;
 import org.jetbrains.kotlin.codegen.pseudoInsns.PseudoInsnsKt;
 import org.jetbrains.kotlin.codegen.state.KotlinTypeMapper;
@@ -156,8 +157,13 @@ public abstract class StackValue {
     }
 
     @NotNull
-    public static Local local(int index, @NotNull Type type, @NotNull VariableDescriptor descriptor) {
-        return new Local(index, type, descriptor.getType(), descriptor.isLateInit(), descriptor.getName());
+    public static StackValue local(int index, @NotNull Type type, @NotNull VariableDescriptor descriptor) {
+        if (descriptor.isLateInit()) {
+            return new LateinitLocal(index, type, descriptor.getType(), descriptor.getName());
+        }
+        else {
+            return new Local(index, type, descriptor.getType());
+        }
     }
 
     @NotNull
@@ -448,28 +454,42 @@ public abstract class StackValue {
 
         if (fromKotlinType.equals(toKotlinType) && fromType.equals(toType)) return true;
 
+        /*
+        * Preconditions: one of the types is definitely inline class type and types are not equal
+        * Consider the following situations:
+        *  - both types are inline class types: we do box/unbox only if they are not both boxed or unboxed
+        *  - from type is inline class type: we should do box, because target type can be only "subtype" of inline class type (like Any)
+        *  - target type is inline class type: we should do unbox, because from type can come from some 'is' check for object type
+        *
+        *  "return true" means that types were coerced successfully and usual coercion shouldn't be evaluated
+        * */
+
         if (isFromTypeInlineClass && isToTypeInlineClass) {
             boolean isFromTypeUnboxed = isUnboxedInlineClass(fromKotlinType, fromType);
             boolean isToTypeUnboxed = isUnboxedInlineClass(toKotlinType, toType);
             if (isFromTypeUnboxed && !isToTypeUnboxed) {
                 boxInlineClass(fromKotlinType, v);
+                return true;
             }
             else if (!isFromTypeUnboxed && isToTypeUnboxed) {
                 unboxInlineClass(fromType, toKotlinType, v);
+                return true;
             }
         }
         else if (isFromTypeInlineClass) {
             if (isUnboxedInlineClass(fromKotlinType, fromType)) {
                 boxInlineClass(fromKotlinType, v);
+                return true;
             }
         }
         else { // isToTypeInlineClass is `true`
             if (isUnboxedInlineClass(toKotlinType, toType)) {
                 unboxInlineClass(fromType, toKotlinType, v);
+                return true;
             }
         }
 
-        return true;
+        return false;
     }
 
     private static boolean isUnboxedInlineClass(@NotNull KotlinType kotlinType, @NotNull Type actualType) {
@@ -704,6 +724,18 @@ public abstract class StackValue {
                 return codegen.generateReceiverValue(receiverValue, false);
             }
             else if (isLocalFunCall(callableMethod) && !isExtension) {
+                if (descriptor instanceof SimpleFunctionDescriptor) {
+                    SimpleFunctionDescriptor initial =
+                            CoroutineCodegenUtilKt.unwrapInitialDescriptorForSuspendFunction((SimpleFunctionDescriptor) descriptor);
+                    if (initial != null && initial.isSuspend()) {
+                        StackValue value = codegen.findLocalOrCapturedValue(initial.getOriginal());
+                        assert value != null : "Local suspend fun should be found in locals or in captured params: " +
+                                               descriptor +
+                                               " initial local suspend fun: " +
+                                               initial;
+                        return value;
+                    }
+                }
                 StackValue value = codegen.findLocalOrCapturedValue(descriptor.getOriginal());
                 assert value != null : "Local fun should be found in locals or in captured params: " + descriptor;
                 return value;
@@ -792,50 +824,65 @@ public abstract class StackValue {
 
     public static class Local extends StackValue {
         public final int index;
-        private final boolean isLateinit;
-        private final Name name;
 
-        private Local(int index, Type type, KotlinType kotlinType, boolean isLateinit, Name name) {
+        private Local(int index, Type type, KotlinType kotlinType) {
             super(type, kotlinType, false);
 
             if (index < 0) {
                 throw new IllegalStateException("local variable index must be non-negative");
             }
 
-            if (isLateinit && name == null) {
-                throw new IllegalArgumentException("Lateinit local variable should have name: #" + index + " " + type.getDescriptor());
-            }
-
             this.index = index;
-            this.isLateinit = isLateinit;
-            this.name = name;
         }
 
         private Local(int index, Type type) {
-            this(index, type, null, false, null);
-        }
-
-        private Local(int index, Type type, KotlinType kotlinType) {
-            this(index, type, kotlinType, false, null);
+            this(index, type, null);
         }
 
         @Override
         public void putSelector(@NotNull Type type, @Nullable KotlinType kotlinType, @NotNull InstructionAdapter v) {
             v.load(index, this.type);
-            if (isLateinit) {
-                StackValue.genNonNullAssertForLateinit(v, name.asString());
-            }
             coerceTo(type, kotlinType, v);
-            // TODO unbox
         }
 
         @Override
         public void storeSelector(@NotNull Type topOfStackType, @Nullable KotlinType topOfStackKotlinType, @NotNull InstructionAdapter v) {
             coerceFrom(topOfStackType, topOfStackKotlinType, v);
             v.store(index, this.type);
-            if (isLateinit) {
-                PseudoInsnsKt.storeNotNull(v);
+        }
+    }
+
+    public static class LateinitLocal extends StackValue {
+        public final int index;
+        private final Name name;
+
+        private LateinitLocal(int index, Type type, KotlinType kotlinType, Name name) {
+            super(type, kotlinType, false);
+
+            if (index < 0) {
+                throw new IllegalStateException("local variable index must be non-negative");
             }
+
+            if (name == null) {
+                throw new IllegalArgumentException("Lateinit local variable should have name: #" + index + " " + type.getDescriptor());
+            }
+
+            this.index = index;
+            this.name = name;
+        }
+
+        @Override
+        public void putSelector(@NotNull Type type, @Nullable KotlinType kotlinType, @NotNull InstructionAdapter v) {
+            v.load(index, this.type);
+            StackValue.genNonNullAssertForLateinit(v, name.asString());
+            coerceTo(type, kotlinType, v);
+        }
+
+        @Override
+        public void storeSelector(@NotNull Type topOfStackType, @Nullable KotlinType topOfStackKotlinType, @NotNull InstructionAdapter v) {
+            coerceFrom(topOfStackType, topOfStackKotlinType, v);
+            v.store(index, this.type);
+            PseudoInsnsKt.storeNotNull(v);
         }
     }
 
@@ -2061,7 +2108,7 @@ public abstract class StackValue {
             @NotNull CallableDescriptor descriptor
     ) {
         throw new RuntimeException(
-                "Augment assignment and increment are not supported for local delegated properties ans inline properties: " +
+                "Augmented assignment and increment are not supported for local delegated properties and inline properties: " +
                 descriptor);
     }
 }

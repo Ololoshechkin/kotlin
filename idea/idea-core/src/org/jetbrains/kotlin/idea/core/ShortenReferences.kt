@@ -173,7 +173,7 @@ class ShortenReferences(val options: (KtElement) -> Options = { Options.DEFAULT 
 
             // step 2: analyze collected elements with resolve and decide which can be shortened now and which need descriptors to be imported before shortening
             val allElementsToAnalyze = visitors.flatMap { it.getElementsToAnalyze().map { it.element } }
-            val bindingContext = file.getResolutionFacade().analyze(allElementsToAnalyze, BodyResolveMode.PARTIAL)
+            val bindingContext = file.getResolutionFacade().analyze(allElementsToAnalyze, BodyResolveMode.PARTIAL_WITH_CFA)
             processors.forEach { it.analyzeCollectedElements(bindingContext) }
 
             // step 3: shorten elements that can be shortened right now
@@ -514,13 +514,20 @@ class ShortenReferences(val options: (KtElement) -> Options = { Options.DEFAULT 
             }
 
             return when {
-                targetsMatch || resolvedCallsMatch -> AnalyzeQualifiedElementResult.ShortenNow
+                targetsMatch || resolvedCallsMatch ->
+                    AnalyzeQualifiedElementResult.ShortenNow
 
-            // it makes no sense to insert import when there is a conflict with function, property etc
-                targetsWhenShort.any { it !is ClassifierDescriptorWithTypeParameters && it !is PackageViewDescriptor } -> AnalyzeQualifiedElementResult.Skip
+                // Function doesn't conflict with property
+                targets.all { it is FunctionDescriptor } && targetsWhenShort.all { it is PropertyDescriptor } ->
+                    AnalyzeQualifiedElementResult.ImportDescriptors(targets)
+
+                // In other cases it makes no sense to insert import when there is a conflict with function, property etc
+                targetsWhenShort.any { it !is ClassifierDescriptorWithTypeParameters && it !is PackageViewDescriptor } ->
+                    AnalyzeQualifiedElementResult.Skip
 
 
-                else -> AnalyzeQualifiedElementResult.ImportDescriptors(targets)
+                else ->
+                    AnalyzeQualifiedElementResult.ImportDescriptors(targets)
             }
         }
 

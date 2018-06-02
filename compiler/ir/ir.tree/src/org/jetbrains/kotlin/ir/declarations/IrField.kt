@@ -15,11 +15,11 @@ import org.jetbrains.kotlin.types.KotlinType
 interface IrField : IrSymbolDeclaration<IrFieldSymbol> {
     override val descriptor: PropertyDescriptor
 
-    override val declarationKind: IrDeclarationKind
-        get() = IrDeclarationKind.FIELD
-
     val name: Name
     val type: KotlinType
     val visibility: Visibility
+    val isFinal: Boolean
+    val isExternal: Boolean
+
     var initializer: IrExpressionBody?
 }

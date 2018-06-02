@@ -75,7 +75,7 @@ internal val KotlinBuiltIns.defaultReturnType: KotlinType get() = unitType
 internal val KotlinBuiltIns.defaultParameterType: KotlinType get() = nullableAnyType
 
 private fun DeclarationDescriptor.renderForMessage(): String =
-        IdeDescriptorRenderers.SOURCE_CODE_SHORT_NAMES_IN_TYPES.render(this)
+        IdeDescriptorRenderers.SOURCE_CODE_SHORT_NAMES_NO_ANNOTATIONS.render(this)
 
 private val TYPE_RENDERER = DescriptorRenderer.FQ_NAMES_IN_TYPES.withOptions {
     typeNormalizer = IdeDescriptorRenderers.APPROXIMATE_FLEXIBLE_TYPES
@@ -608,7 +608,9 @@ private fun ExtractionData.getLocalInstructions(pseudocode: Pseudocode): List<In
 
 fun ExtractionData.isVisibilityApplicable(): Boolean {
     val parent = targetSibling.parent
-    return parent is KtClassBody || (parent is KtFile && !parent.isScript())
+    if (parent !is KtClassBody && (parent !is KtFile || parent.isScript())) return false
+    if (commonParent.parentsWithSelf.any { it is KtNamedFunction && it.hasModifier(KtTokens.INLINE_KEYWORD) && it.isPublic }) return false
+    return true
 }
 
 fun ExtractionData.getDefaultVisibility(): String {

@@ -8,22 +8,23 @@ FILE fqName:<root> fileName:/qualifiedSuperCalls.kt
       BLOCK_BODY
     PROPERTY name:bar type:kotlin.Int visibility:public modality:OPEN flags:val
       FUN name:<get-bar> visibility:public modality:OPEN <> ($this:ILeft) returnType:Int flags:
+        correspondingProperty: PROPERTY name:bar type:kotlin.Int visibility:public modality:OPEN flags:val
         $this: VALUE_PARAMETER name:<this> type:ILeft flags:
         BLOCK_BODY
           RETURN type=kotlin.Nothing from='<get-bar>(): Int'
             CONST Int type=kotlin.Int value=1
     FUN FAKE_OVERRIDE name:equals visibility:public modality:OPEN <> ($this:kotlin.Any, other:kotlin.Any?) returnType:Boolean flags:
       overridden:
-        FUN IR_EXTERNAL_DECLARATION_STUB name:equals visibility:public modality:OPEN <> (other:kotlin.Any?) returnType:Boolean flags:
+        FUN IR_EXTERNAL_DECLARATION_STUB name:equals visibility:public modality:OPEN <> ($this:kotlin.Any, other:kotlin.Any?) returnType:Boolean flags:
       $this: VALUE_PARAMETER name:<this> type:kotlin.Any flags:
       VALUE_PARAMETER name:other index:0 type:kotlin.Any? flags:
     FUN FAKE_OVERRIDE name:hashCode visibility:public modality:OPEN <> ($this:kotlin.Any) returnType:Int flags:
       overridden:
-        FUN IR_EXTERNAL_DECLARATION_STUB name:hashCode visibility:public modality:OPEN <> () returnType:Int flags:
+        FUN IR_EXTERNAL_DECLARATION_STUB name:hashCode visibility:public modality:OPEN <> ($this:kotlin.Any) returnType:Int flags:
       $this: VALUE_PARAMETER name:<this> type:kotlin.Any flags:
     FUN FAKE_OVERRIDE name:toString visibility:public modality:OPEN <> ($this:kotlin.Any) returnType:String flags:
       overridden:
-        FUN IR_EXTERNAL_DECLARATION_STUB name:toString visibility:public modality:OPEN <> () returnType:String flags:
+        FUN IR_EXTERNAL_DECLARATION_STUB name:toString visibility:public modality:OPEN <> ($this:kotlin.Any) returnType:String flags:
       $this: VALUE_PARAMETER name:<this> type:kotlin.Any flags:
   CLASS INTERFACE name:IRight modality:ABSTRACT visibility:public flags:
     $this: VALUE_PARAMETER INSTANCE_RECEIVER name:<this> type:IRight flags:
@@ -34,29 +35,30 @@ FILE fqName:<root> fileName:/qualifiedSuperCalls.kt
       BLOCK_BODY
     PROPERTY name:bar type:kotlin.Int visibility:public modality:OPEN flags:val
       FUN name:<get-bar> visibility:public modality:OPEN <> ($this:IRight) returnType:Int flags:
+        correspondingProperty: PROPERTY name:bar type:kotlin.Int visibility:public modality:OPEN flags:val
         $this: VALUE_PARAMETER name:<this> type:IRight flags:
         BLOCK_BODY
           RETURN type=kotlin.Nothing from='<get-bar>(): Int'
             CONST Int type=kotlin.Int value=2
     FUN FAKE_OVERRIDE name:equals visibility:public modality:OPEN <> ($this:kotlin.Any, other:kotlin.Any?) returnType:Boolean flags:
       overridden:
-        FUN IR_EXTERNAL_DECLARATION_STUB name:equals visibility:public modality:OPEN <> (other:kotlin.Any?) returnType:Boolean flags:
+        FUN IR_EXTERNAL_DECLARATION_STUB name:equals visibility:public modality:OPEN <> ($this:kotlin.Any, other:kotlin.Any?) returnType:Boolean flags:
       $this: VALUE_PARAMETER name:<this> type:kotlin.Any flags:
       VALUE_PARAMETER name:other index:0 type:kotlin.Any? flags:
     FUN FAKE_OVERRIDE name:hashCode visibility:public modality:OPEN <> ($this:kotlin.Any) returnType:Int flags:
       overridden:
-        FUN IR_EXTERNAL_DECLARATION_STUB name:hashCode visibility:public modality:OPEN <> () returnType:Int flags:
+        FUN IR_EXTERNAL_DECLARATION_STUB name:hashCode visibility:public modality:OPEN <> ($this:kotlin.Any) returnType:Int flags:
       $this: VALUE_PARAMETER name:<this> type:kotlin.Any flags:
     FUN FAKE_OVERRIDE name:toString visibility:public modality:OPEN <> ($this:kotlin.Any) returnType:String flags:
       overridden:
-        FUN IR_EXTERNAL_DECLARATION_STUB name:toString visibility:public modality:OPEN <> () returnType:String flags:
+        FUN IR_EXTERNAL_DECLARATION_STUB name:toString visibility:public modality:OPEN <> ($this:kotlin.Any) returnType:String flags:
       $this: VALUE_PARAMETER name:<this> type:kotlin.Any flags:
   CLASS CLASS name:CBoth modality:FINAL visibility:public flags:
     $this: VALUE_PARAMETER INSTANCE_RECEIVER name:<this> type:CBoth flags:
     superClasses:
       CLASS INTERFACE name:ILeft modality:ABSTRACT visibility:public flags:
       CLASS INTERFACE name:IRight modality:ABSTRACT visibility:public flags:
-    CONSTRUCTOR visibility:public <> () returnType:CBoth flags:
+    CONSTRUCTOR visibility:public <> () returnType:CBoth flags:primary
       BLOCK_BODY
         DELEGATING_CONSTRUCTOR_CALL 'constructor Any()'
         INSTANCE_INITIALIZER_CALL classDescriptor='CBoth'
@@ -72,6 +74,7 @@ FILE fqName:<root> fileName:/qualifiedSuperCalls.kt
           $this: GET_VAR 'this@CBoth: CBoth' type=CBoth origin=null
     PROPERTY name:bar type:kotlin.Int visibility:public modality:OPEN flags:val
       FUN name:<get-bar> visibility:public modality:OPEN <> ($this:CBoth) returnType:Int flags:
+        correspondingProperty: PROPERTY name:bar type:kotlin.Int visibility:public modality:OPEN flags:val
         overridden:
           FUN name:<get-bar> visibility:public modality:OPEN <> ($this:ILeft) returnType:Int flags:
           FUN name:<get-bar> visibility:public modality:OPEN <> ($this:IRight) returnType:Int flags:

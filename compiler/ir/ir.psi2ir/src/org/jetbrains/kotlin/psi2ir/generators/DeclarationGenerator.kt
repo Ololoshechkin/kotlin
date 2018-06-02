@@ -75,31 +75,67 @@ class DeclarationGenerator(override val context: GeneratorContext) : Generator {
         )
 
 
-    fun generateTypeParameterDeclarations(
+    fun generateGlobalTypeParametersDeclarations(
         irTypeParametersOwner: IrTypeParametersContainer,
         from: List<TypeParameterDescriptor>
     ) {
-        from.mapTo(irTypeParametersOwner.typeParameters) { typeParameterDescriptor ->
-            val ktTypeParameterDeclaration = DescriptorToSourceUtils.getSourceFromDescriptor(typeParameterDescriptor)
-            val startOffset = ktTypeParameterDeclaration.startOffsetOrUndefined
-            val endOffset = ktTypeParameterDeclaration.endOffsetOrUndefined
-            declareTypeParameterWithSuperClassifiers(startOffset, endOffset, IrDeclarationOrigin.DEFINED, typeParameterDescriptor)
+        generateTypeParameterDeclarations(irTypeParametersOwner, from) { startOffset, endOffset, typeParameterDescriptor ->
+            context.symbolTable.declareGlobalTypeParameter(
+                startOffset,
+                endOffset,
+                IrDeclarationOrigin.DEFINED,
+                typeParameterDescriptor
+            )
         }
     }
 
-    private fun declareTypeParameterWithSuperClassifiers(
-        startOffset: Int,
-        endOffset: Int,
-        origin: IrDeclarationOrigin,
-        descriptor: TypeParameterDescriptor
-    ) =
-        context.symbolTable.declareTypeParameter(startOffset, endOffset, origin, descriptor).also { irTypeParameter ->
-            descriptor.typeConstructor.supertypes.mapNotNullTo(irTypeParameter.superClassifiers) {
-                it.constructor.declarationDescriptor?.let {
-                    context.symbolTable.referenceClassifier(it)
-                }
+    fun generateScopedTypeParameterDeclarations(
+        irTypeParametersOwner: IrTypeParametersContainer,
+        from: List<TypeParameterDescriptor>
+    ) {
+        generateTypeParameterDeclarations(irTypeParametersOwner, from) { startOffset, endOffset, typeParameterDescriptor ->
+            context.symbolTable.declareScopedTypeParameter(
+                startOffset,
+                endOffset,
+                IrDeclarationOrigin.DEFINED,
+                typeParameterDescriptor
+            )
+        }
+    }
+
+    private fun generateTypeParameterDeclarations(
+        irTypeParametersOwner: IrTypeParametersContainer,
+        from: List<TypeParameterDescriptor>,
+        declareTypeParameter: (Int, Int, TypeParameterDescriptor) -> IrTypeParameter
+    ) {
+        val irTypeParameters = from.map { typeParameterDescriptor ->
+            val ktTypeParameterDeclaration = DescriptorToSourceUtils.getSourceFromDescriptor(typeParameterDescriptor)
+            val startOffset = ktTypeParameterDeclaration.startOffsetOrUndefined
+            val endOffset = ktTypeParameterDeclaration.endOffsetOrUndefined
+            declareTypeParameter(
+                startOffset,
+                endOffset,
+                typeParameterDescriptor
+            )
+        }
+
+        irTypeParameters.forEach {
+            mapSuperClassifiers(it.descriptor, it)
+        }
+
+        irTypeParametersOwner.typeParameters.addAll(irTypeParameters)
+    }
+
+    private fun mapSuperClassifiers(
+        descriptor: TypeParameterDescriptor,
+        irTypeParameter: IrTypeParameter
+    ) {
+        descriptor.typeConstructor.supertypes.mapNotNullTo(irTypeParameter.superClassifiers) {
+            it.constructor.declarationDescriptor?.let {
+                context.symbolTable.referenceClassifier(it)
             }
         }
+    }
 
     fun generateInitializerBody(scopeOwnerSymbol: IrSymbol, ktBody: KtExpression): IrExpressionBody =
         createBodyGenerator(scopeOwnerSymbol).generateExpressionBody(ktBody)
@@ -134,7 +170,7 @@ class DeclarationGenerator(override val context: GeneratorContext) : Generator {
             propertyDescriptor.setter?.let { generateFakeOverrideFunction(it, ktElement) }
         )
 
-    private fun generateFakeOverrideFunction(functionDescriptor: FunctionDescriptor, ktElement: KtElement): IrFunction =
+    private fun generateFakeOverrideFunction(functionDescriptor: FunctionDescriptor, ktElement: KtElement): IrSimpleFunction =
         FunctionGenerator(this).generateFakeOverrideFunction(functionDescriptor, ktElement)
 }
 

@@ -1,17 +1,6 @@
 /*
- * Copyright 2010-2017 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license
+ * that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.js.translate.utils
@@ -19,8 +8,10 @@ package org.jetbrains.kotlin.js.translate.utils
 import com.intellij.psi.PsiElement
 import com.intellij.util.SmartList
 import org.jetbrains.kotlin.backend.common.COROUTINE_SUSPENDED_NAME
+import org.jetbrains.kotlin.backend.common.onlyIf
 import org.jetbrains.kotlin.builtins.KotlinBuiltIns
 import org.jetbrains.kotlin.config.LanguageFeature
+import org.jetbrains.kotlin.config.coroutinesIntrinsicsPackageFqName
 import org.jetbrains.kotlin.config.languageVersionSettings
 import org.jetbrains.kotlin.descriptors.ClassDescriptor
 import org.jetbrains.kotlin.descriptors.FunctionDescriptor
@@ -37,11 +28,12 @@ import org.jetbrains.kotlin.js.translate.utils.TranslationUtils.simpleReturnFunc
 import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.DescriptorUtils
+import org.jetbrains.kotlin.resolve.calls.components.isActualParameterWithCorrespondingExpectedDefault
 import org.jetbrains.kotlin.resolve.calls.model.ResolvedCall
-import org.jetbrains.kotlin.resolve.descriptorUtil.hasOrInheritsParametersWithDefaultValue
 import org.jetbrains.kotlin.resolve.source.getPsi
 import org.jetbrains.kotlin.types.KotlinType
 import org.jetbrains.kotlin.types.TypeUtils
+import org.jetbrains.kotlin.utils.DFS
 
 fun generateDelegateCall(
     classDescriptor: ClassDescriptor,
@@ -71,15 +63,19 @@ fun generateDelegateCall(
         args.add(JsNameRef(extensionFunctionReceiverName))
     }
 
-    for (param in fromDescriptor.valueParameters) {
+    val valueParameterDescriptors = if (fromDescriptor.isSuspend) {
+        fromDescriptor.valueParameters + context.continuationParameterDescriptor!!
+    } else fromDescriptor.valueParameters
+
+    for (param in valueParameterDescriptors) {
         val paramName = param.name.asString()
         val jsParamName = JsScope.declareTemporaryName(paramName)
         parameters.add(JsParameter(jsParamName))
         args.add(JsNameRef(jsParamName))
     }
 
-    val intrinsic = context.intrinsics().getFunctionIntrinsic(toDescriptor)
-    val invocation = if (intrinsic.exists() && intrinsic is FunctionIntrinsicWithReceiverComputed) {
+    val intrinsic = context.intrinsics().getFunctionIntrinsic(toDescriptor, context)
+    val invocation = if (intrinsic is FunctionIntrinsicWithReceiverComputed) {
         intrinsic.apply(thisObject, args, context)
     } else {
         JsInvocation(overriddenMemberFunctionRef, args)
@@ -90,6 +86,7 @@ fun generateDelegateCall(
     val functionObject = simpleReturnFunction(context.scope(), invocation)
     functionObject.source = source?.finalElement
     functionObject.parameters.addAll(parameters)
+    functionObject.onlyIf(JsFunction::isSuspend) { it.fillCoroutineMetadata(context, fromDescriptor, false) }
 
     val fromFunctionName = fromDescriptor.getNameForFunctionWithPossibleDefaultParam()
 
@@ -165,7 +162,7 @@ fun JsFunction.fillCoroutineMetadata(
     descriptor: FunctionDescriptor,
     hasController: Boolean
 ) {
-    val suspendPropertyDescriptor = context.currentModule.getPackage(DescriptorUtils.COROUTINES_INTRINSICS_PACKAGE_FQ_NAME)
+    val suspendPropertyDescriptor = context.currentModule.getPackage(context.languageVersionSettings.coroutinesIntrinsicsPackageFqName())
         .memberScope
         .getContributedVariables(COROUTINE_SUSPENDED_NAME, NoLookupLocation.FROM_BACKEND).first()
 
@@ -275,3 +272,12 @@ fun TranslationContext.getPrimitiveNumericComparisonInfo(expression: KtExpressio
             null
         }
 }
+
+fun FunctionDescriptor.hasOrInheritsParametersWithDefaultValue(): Boolean = DFS.ifAny(
+    listOf(this),
+    { current -> current.overriddenDescriptors.map { it.original } },
+    { it.hasOwnParametersWithDefaultValue() }
+)
+
+fun FunctionDescriptor.hasOwnParametersWithDefaultValue() =
+    original.valueParameters.any { it.declaresDefaultValue() || it.isActualParameterWithCorrespondingExpectedDefault }

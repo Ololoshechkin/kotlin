@@ -32,19 +32,22 @@ class KotlinGradleModuleConfigurator : KotlinWithGradleConfigurator() {
         get() = JvmPlatform
 
     override val presentableText: String
-        get() = "Gradle"
+        get() = "Java with Gradle"
 
     override val kotlinPluginName: String
         get() = KOTLIN
 
+    override fun getKotlinPluginExpression(forKotlinDsl: Boolean): String =
+        if (forKotlinDsl) "kotlin(\"jvm\")" else "id 'org.jetbrains.kotlin.jvm'"
+
     override fun getJvmTarget(sdk: Sdk?, version: String) = getDefaultJvmTarget(sdk, version)?.description
 
     override fun configureModule(
-            module: Module,
-            file: PsiFile,
-            isTopLevelProjectFile: Boolean,
-            version: String, collector: NotificationMessageCollector,
-            filesToOpen: MutableCollection<PsiFile>
+        module: Module,
+        file: PsiFile,
+        isTopLevelProjectFile: Boolean,
+        version: String, collector: NotificationMessageCollector,
+        filesToOpen: MutableCollection<PsiFile>
     ) {
         super.configureModule(module, file, isTopLevelProjectFile, version, collector, filesToOpen)
 

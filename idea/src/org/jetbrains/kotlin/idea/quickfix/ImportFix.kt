@@ -127,9 +127,9 @@ internal abstract class ImportFixBase<T : KtExpression> protected constructor(
 
     override fun startInWriteAction() = true
 
-    private fun isOutdated() = modificationCountOnCreate != PsiModificationTracker.SERVICE.getInstance(project).modificationCount
+    fun isOutdated() = modificationCountOnCreate != PsiModificationTracker.SERVICE.getInstance(project).modificationCount
 
-    protected open fun createAction(project: Project, editor: Editor, element: KtExpression): KotlinAddImportAction {
+    open fun createAction(project: Project, editor: Editor, element: KtExpression): KotlinAddImportAction {
         return createSingleImportAction(project, editor, element, suggestions)
     }
 
@@ -625,13 +625,12 @@ internal object ImportForMissingOperatorFactory : ImportFixBase.Factory() {
 
 
 private fun KotlinIndicesHelper.getClassesByName(expressionForPlatform: KtExpression, name: String) =
-        when (TargetPlatformDetector.getPlatform(expressionForPlatform.containingKtFile)) {
-            JsPlatform -> getKotlinClasses({ it == name },
-                    // Enum entries should be contributes with members import fix
-                                           psiFilter = { ktDeclaration -> ktDeclaration !is KtEnumEntry },
-                                           kindFilter = { kind -> kind != ClassKind.ENUM_ENTRY })
-            JvmPlatform -> getJvmClassesByName(name)
-            else -> emptyList()
-        }
+    when (TargetPlatformDetector.getPlatform(expressionForPlatform.containingKtFile)) {
+        JvmPlatform -> getJvmClassesByName(name)
+        else -> getKotlinClasses({ it == name },
+            // Enum entries should be contributes with members import fix
+                                 psiFilter = { ktDeclaration -> ktDeclaration !is KtEnumEntry },
+                                 kindFilter = { kind -> kind != ClassKind.ENUM_ENTRY })
+    }
 
 private fun CallTypeAndReceiver<*, *>.toFilter() = { descriptor: DeclarationDescriptor -> this.callType.descriptorKindFilter.accepts(descriptor) }

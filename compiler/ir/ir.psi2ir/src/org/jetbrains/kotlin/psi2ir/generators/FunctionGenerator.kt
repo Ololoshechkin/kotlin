@@ -31,8 +31,10 @@ import org.jetbrains.kotlin.psi2ir.isConstructorDelegatingToSuper
 import org.jetbrains.kotlin.psi2ir.startOffsetOrUndefined
 import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.DescriptorToSourceUtils
+import org.jetbrains.kotlin.resolve.DescriptorUtils
 
 class FunctionGenerator(declarationGenerator: DeclarationGenerator) : DeclarationGeneratorExtension(declarationGenerator) {
+
     constructor(context: GeneratorContext) : this(DeclarationGenerator(context))
 
     fun generateFunctionDeclaration(ktFunction: KtNamedFunction): IrFunction =
@@ -45,7 +47,7 @@ class FunctionGenerator(declarationGenerator: DeclarationGenerator) : Declaratio
             ktFunction.bodyExpression?.let { generateFunctionBody(it) }
         }
 
-    fun generateLambdaFunctionDeclaration(ktFunction: KtFunctionLiteral): IrFunction =
+    fun generateLambdaFunctionDeclaration(ktFunction: KtFunctionLiteral): IrSimpleFunction =
         declareSimpleFunction(
             ktFunction,
             null,
@@ -55,7 +57,7 @@ class FunctionGenerator(declarationGenerator: DeclarationGenerator) : Declaratio
             generateLambdaBody(ktFunction)
         }
 
-    fun generateFakeOverrideFunction(functionDescriptor: FunctionDescriptor, ktElement: KtElement): IrFunction =
+    fun generateFakeOverrideFunction(functionDescriptor: FunctionDescriptor, ktElement: KtElement): IrSimpleFunction =
         context.symbolTable.declareSimpleFunctionWithOverrides(
             ktElement.startOffsetOrUndefined, ktElement.endOffsetOrUndefined,
             IrDeclarationOrigin.FAKE_OVERRIDE,
@@ -83,7 +85,7 @@ class FunctionGenerator(declarationGenerator: DeclarationGenerator) : Declaratio
         ktParameterOwner: KtElement?,
         ktReceiverParameterElement: KtElement?
     ) {
-        declarationGenerator.generateTypeParameterDeclarations(irFunction, irFunction.descriptor.typeParameters)
+        declarationGenerator.generateScopedTypeParameterDeclarations(irFunction, irFunction.descriptor.typeParameters)
         generateValueParameterDeclarations(irFunction, ktParameterOwner, ktReceiverParameterElement)
     }
 
@@ -98,6 +100,7 @@ class FunctionGenerator(declarationGenerator: DeclarationGenerator) : Declaratio
             if (ktAccessor != null) IrDeclarationOrigin.DEFINED else IrDeclarationOrigin.DEFAULT_PROPERTY_ACCESSOR,
             descriptor
         ).buildWithScope { irAccessor ->
+            declarationGenerator.generateScopedTypeParameterDeclarations(irAccessor, descriptor.correspondingProperty.typeParameters)
             generateFunctionParameterDeclarations(irAccessor, ktAccessor ?: ktProperty, ktProperty.receiverTypeReference)
             val ktBodyExpression = ktAccessor?.bodyExpression
             irAccessor.body =
@@ -110,14 +113,14 @@ class FunctionGenerator(declarationGenerator: DeclarationGenerator) : Declaratio
     fun generateDefaultAccessorForPrimaryConstructorParameter(
         descriptor: PropertyAccessorDescriptor,
         ktParameter: KtParameter
-    ): IrFunction =
+    ): IrSimpleFunction =
         context.symbolTable.declareSimpleFunctionWithOverrides(
             ktParameter.startOffsetOrUndefined,
             ktParameter.endOffsetOrUndefined,
             IrDeclarationOrigin.DEFAULT_PROPERTY_ACCESSOR,
             descriptor
         ).buildWithScope { irAccessor ->
-            declarationGenerator.generateTypeParameterDeclarations(irAccessor, descriptor.typeParameters)
+            declarationGenerator.generateScopedTypeParameterDeclarations(irAccessor, descriptor.typeParameters)
             FunctionGenerator(declarationGenerator).generateSyntheticFunctionParameterDeclarations(irAccessor)
             irAccessor.body = generateDefaultAccessorBody(ktParameter, descriptor, irAccessor)
         }
@@ -197,7 +200,10 @@ class FunctionGenerator(declarationGenerator: DeclarationGenerator) : Declaratio
         ktClassOrObject: KtClassOrObject
     ): IrConstructor =
         declareConstructor(ktClassOrObject, ktClassOrObject.primaryConstructor ?: ktClassOrObject, primaryConstructorDescriptor) {
-            if (primaryConstructorDescriptor.isExpect)
+            if (
+                primaryConstructorDescriptor.isExpect ||
+                DescriptorUtils.isAnnotationClass(primaryConstructorDescriptor.constructedClass)
+            )
                 null
             else
                 generatePrimaryConstructorBody(ktClassOrObject)
@@ -229,7 +235,7 @@ class FunctionGenerator(declarationGenerator: DeclarationGenerator) : Declaratio
         }
 
     fun generateSyntheticFunctionParameterDeclarations(irFunction: IrFunction) {
-        declarationGenerator.generateTypeParameterDeclarations(irFunction, irFunction.descriptor.typeParameters)
+        declarationGenerator.generateGlobalTypeParametersDeclarations(irFunction, irFunction.descriptor.typeParameters)
         generateValueParameterDeclarations(irFunction, null, null, withDefaultValues = false)
     }
 

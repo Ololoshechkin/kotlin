@@ -27,6 +27,7 @@ import org.jetbrains.kotlin.gradle.plugin.kotlinWarn
 import org.jetbrains.kotlin.gradle.tasks.CompilerPluginOptions
 import org.jetbrains.kotlin.gradle.tasks.FilteringSourceRootsContainer
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import org.jetbrains.kotlin.gradle.tasks.SourceRoots
 import org.jetbrains.kotlin.incremental.ChangedFiles
 import org.jetbrains.kotlin.incremental.classpathAsList
 import org.jetbrains.kotlin.incremental.destinationAsFile
@@ -74,8 +75,6 @@ open class KaptGenerateStubsTask : KotlinCompile() {
     override fun setupCompilerArgs(args: K2JVMCompilerArguments, defaultsOnly: Boolean) {
         kotlinCompileTask.setupCompilerArgs(args)
 
-        args.pluginClasspaths = (pluginClasspath + args.pluginClasspaths!!).toSet().toTypedArray()
-
         val pluginOptionsWithKapt = pluginOptions.withWrappedKaptOptions(withApClasspath = kaptClasspath)
         args.pluginOptions = (pluginOptionsWithKapt.arguments + args.pluginOptions!!).toTypedArray()
 
@@ -84,18 +83,12 @@ open class KaptGenerateStubsTask : KotlinCompile() {
         args.destinationAsFile = this.destinationDir
     }
 
-    override fun clearOutputsBeforeNonIncrementalBuild() {
-        super.clearOutputsBeforeNonIncrementalBuild()
-
-        if (!stubsDir.deleteRecursively()) {
-            logger.kotlinWarn("Could not delete $stubsDir")
-        }
-
-        stubsDir.mkdirs()
-    }
-
     override fun execute(inputs: IncrementalTaskInputs) {
-        val sourceRoots = kotlinCompileTask.getSourceRoots()
+        val sourceRoots = kotlinCompileTask.getSourceRoots().let {
+            val javaSourceRoots = it.javaSourceRoots.filterTo(HashSet()) { isSourceRootAllowed(it) }
+            val kotlinSourceFiles = it.kotlinSourceFiles
+            SourceRoots.ForJvm(kotlinSourceFiles, javaSourceRoots)
+        }
         val allKotlinSources = sourceRoots.kotlinSourceFiles
 
         logger.kotlinDebug { "All kotlin sources: ${allKotlinSources.pathsAsStringRelativeTo(project.rootProject.projectDir)}" }

@@ -32,9 +32,11 @@ import org.jetbrains.kotlin.resolve.annotations.AnnotationUtilKt;
 import org.jetbrains.kotlin.resolve.calls.model.ResolvedCall;
 import org.jetbrains.kotlin.resolve.calls.util.UnderscoreUtilKt;
 import org.jetbrains.kotlin.resolve.constants.ConstantValue;
+import org.jetbrains.kotlin.resolve.jvm.AsmTypes;
 import org.jetbrains.kotlin.resolve.jvm.diagnostics.JvmDeclarationOriginKt;
 import org.jetbrains.kotlin.resolve.jvm.jvmSignature.JvmMethodGenericSignature;
 import org.jetbrains.kotlin.resolve.jvm.jvmSignature.JvmMethodSignature;
+import org.jetbrains.kotlin.resolve.lazy.descriptors.script.ScriptEnvironmentPropertyDescriptor;
 import org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedPropertyDescriptor;
 import org.jetbrains.kotlin.storage.LockBasedStorageManager;
 import org.jetbrains.kotlin.types.ErrorUtils;
@@ -50,6 +52,7 @@ import java.util.List;
 
 import static org.jetbrains.kotlin.codegen.AsmUtil.getDeprecatedAccessFlag;
 import static org.jetbrains.kotlin.codegen.AsmUtil.getVisibilityForBackingField;
+import static org.jetbrains.kotlin.codegen.FunctionCodegen.processInterfaceMethod;
 import static org.jetbrains.kotlin.codegen.JvmCodegenUtil.isConstOrHasJvmFieldAnnotation;
 import static org.jetbrains.kotlin.codegen.JvmCodegenUtil.isJvmInterface;
 import static org.jetbrains.kotlin.codegen.binding.CodegenBinding.DELEGATED_PROPERTIES;
@@ -130,12 +133,18 @@ public class PropertyCodegen {
 
         genBackingFieldAndAnnotations(declaration, descriptor, false);
 
-        if (isAccessorNeeded(declaration, descriptor, getter)) {
+        boolean isDefaultGetterAndSetter = isDefaultAccessor(getter) && isDefaultAccessor(setter);
+
+        if (isAccessorNeeded(declaration, descriptor, getter, isDefaultGetterAndSetter)) {
             generateGetter(declaration, descriptor, getter);
         }
-        if (isAccessorNeeded(declaration, descriptor, setter)) {
+        if (isAccessorNeeded(declaration, descriptor, setter, isDefaultGetterAndSetter)) {
             generateSetter(declaration, descriptor, setter);
         }
+    }
+
+    private static boolean isDefaultAccessor(@Nullable KtPropertyAccessor accessor) {
+        return accessor == null || !accessor.hasBody();
     }
 
     private void genDestructuringDeclaration(
@@ -194,11 +203,12 @@ public class PropertyCodegen {
     private boolean isAccessorNeeded(
             @Nullable KtProperty declaration,
             @NotNull PropertyDescriptor descriptor,
-            @Nullable KtPropertyAccessor accessor
+            @Nullable KtPropertyAccessor accessor,
+            boolean isDefaultGetterAndSetter
     ) {
         if (isConstOrHasJvmFieldAnnotation(descriptor)) return false;
 
-        boolean isDefaultAccessor = accessor == null || !accessor.hasBody();
+        boolean isDefaultAccessor = isDefaultAccessor(accessor);
 
         // Don't generate accessors for interface properties with default accessors in DefaultImpls
         if (kind == OwnerKind.DEFAULT_IMPLS && isDefaultAccessor) return false;
@@ -208,8 +218,16 @@ public class PropertyCodegen {
         // Delegated or extension properties can only be referenced via accessors
         if (declaration.hasDelegate() || declaration.getReceiverTypeReference() != null) return true;
 
-        // Companion object properties always should have accessors, because their backing fields are moved/copied to the outer class
-        if (isCompanionObject(descriptor.getContainingDeclaration())) return true;
+        // Companion object properties should have accessors for non-private properties because these properties can be referenced
+        // via getter/setter. But these accessors getter/setter are not required for private properties that have a default getter
+        // and setter, in this case, the property can always be accessed through the accessor 'access<property name>$cp' and avoid some
+        // useless indirection by using others accessors.
+        if (isCompanionObject(descriptor.getContainingDeclaration())) {
+            if (Visibilities.isPrivate(descriptor.getVisibility()) && isDefaultGetterAndSetter) {
+                return false;
+            }
+            return true;
+        }
 
         // Non-const properties from multifile classes have accessors regardless of visibility
         if (isNonConstTopLevelPropertyInMultifileClass(declaration, descriptor)) return true;
@@ -335,9 +353,7 @@ public class PropertyCodegen {
         if (annotations.getAllAnnotations().isEmpty()) return;
 
         DeclarationDescriptor contextDescriptor = context.getContextDescriptor();
-        if (!isInterface(contextDescriptor) ||
-            (FunctionCodegen.processInterface(contextDescriptor, kind, state) ||
-             (kind == OwnerKind.DEFAULT_IMPLS && state.getGenerateDefaultImplsForJvm8()))) {
+        if (!isInterface(contextDescriptor) || processInterfaceMethod(descriptor, kind, true, state.getJvmDefaultMode())) {
             memberCodegen.generateSyntheticAnnotationsMethod(
                     descriptor, getSyntheticMethodSignature(descriptor), annotations, AnnotationUseSiteTarget.PROPERTY
             );
@@ -473,13 +489,13 @@ public class PropertyCodegen {
         return false;
     }
 
-    private void generateGetter(@Nullable KtNamedDeclaration p, @NotNull PropertyDescriptor descriptor, @Nullable KtPropertyAccessor getter) {
+    public void generateGetter(@Nullable KtNamedDeclaration p, @NotNull PropertyDescriptor descriptor, @Nullable KtPropertyAccessor getter) {
         generateAccessor(p, getter, descriptor.getGetter() != null
                                     ? descriptor.getGetter()
                                     : DescriptorFactory.createDefaultGetter(descriptor, Annotations.Companion.getEMPTY()));
     }
 
-    private void generateSetter(@Nullable KtNamedDeclaration p, @NotNull PropertyDescriptor descriptor, @Nullable KtPropertyAccessor setter) {
+    public void generateSetter(@Nullable KtNamedDeclaration p, @NotNull PropertyDescriptor descriptor, @Nullable KtPropertyAccessor setter) {
         if (!descriptor.isVar()) return;
 
         generateAccessor(p, setter, descriptor.getSetter() != null
@@ -500,7 +516,10 @@ public class PropertyCodegen {
 
         FunctionGenerationStrategy strategy;
         if (accessor == null || !accessor.hasBody()) {
-            if (p instanceof KtProperty && ((KtProperty) p).hasDelegate()) {
+            if (accessorDescriptor.getCorrespondingProperty() instanceof ScriptEnvironmentPropertyDescriptor) {
+                strategy = new ScriptEnvPropertyAccessorStrategy(state, accessorDescriptor);
+            }
+            else if (p instanceof KtProperty && ((KtProperty) p).hasDelegate()) {
                 strategy = new DelegatedPropertyAccessorStrategy(state, accessorDescriptor);
             }
             else {
@@ -610,6 +629,42 @@ public class PropertyCodegen {
             Type asmType = signature.getReturnType();
             lastValue.put(asmType, v);
             v.areturn(asmType);
+        }
+    }
+
+    static class ScriptEnvPropertyAccessorStrategy extends FunctionGenerationStrategy.CodegenBased {
+        public static final Type MAP_IFACE_TYPE = Type.getObjectType("java/util/Map");
+        public static final String MAP_FIELD_NAME = "$scriptEnvironment";
+        private final PropertyAccessorDescriptor propertyAccessorDescriptor;
+
+        public ScriptEnvPropertyAccessorStrategy(@NotNull GenerationState state, @NotNull PropertyAccessorDescriptor descriptor) {
+            super(state);
+            this.propertyAccessorDescriptor = descriptor;
+        }
+
+        @Override
+        public void doGenerateBody(@NotNull ExpressionCodegen codegen, @NotNull JvmMethodSignature signature) {
+            InstructionAdapter v = codegen.v;
+
+            Type scriptType = state.getTypeMapper().mapOwner(propertyAccessorDescriptor);
+            String scriptInternalName = scriptType.getInternalName();
+            v.load(0, scriptType);
+            v.getfield(scriptInternalName, MAP_FIELD_NAME, MAP_IFACE_TYPE.getDescriptor());
+            v.aconst(propertyAccessorDescriptor.getCorrespondingProperty().getName().asString());
+            if (propertyAccessorDescriptor instanceof PropertyGetterDescriptor) {
+                v.invokeinterface(MAP_IFACE_TYPE.getInternalName(), "get",
+                                  Type.getMethodDescriptor(AsmTypes.OBJECT_TYPE, AsmTypes.OBJECT_TYPE));
+            }
+            else {
+                Type valueType = state.getTypeMapper().mapType(propertyAccessorDescriptor.getCorrespondingProperty());
+                v.load(1, valueType);
+                StackValue.coerce(valueType, AsmTypes.OBJECT_TYPE, v);
+                v.visitMethodInsn(Opcodes.INVOKEINTERFACE, MAP_IFACE_TYPE.getInternalName(), "put",
+                                  Type.getMethodDescriptor(Type.BOOLEAN_TYPE, AsmTypes.OBJECT_TYPE, AsmTypes.OBJECT_TYPE), true);
+            }
+            Type returnType = state.getTypeMapper().mapReturnType(propertyAccessorDescriptor);
+            StackValue.coerce(AsmTypes.OBJECT_TYPE, returnType, v);
+            v.areturn(returnType);
         }
     }
 

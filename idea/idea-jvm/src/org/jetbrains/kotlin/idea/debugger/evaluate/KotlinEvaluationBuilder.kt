@@ -57,7 +57,7 @@ import org.jetbrains.kotlin.diagnostics.Errors
 import org.jetbrains.kotlin.diagnostics.Severity
 import org.jetbrains.kotlin.diagnostics.rendering.DefaultErrorMessages
 import org.jetbrains.kotlin.idea.KotlinLanguage
-import org.jetbrains.kotlin.idea.caches.resolve.getJavaClassDescriptor
+import org.jetbrains.kotlin.idea.caches.resolve.util.getJavaClassDescriptor
 import org.jetbrains.kotlin.idea.core.quoteSegmentsIfNeeded
 import org.jetbrains.kotlin.idea.debugger.DebuggerUtils
 import org.jetbrains.kotlin.idea.debugger.evaluate.KotlinDebuggerCaches.CompiledDataDescriptor
@@ -460,7 +460,7 @@ class KotlinEvaluator(val codeFragment: KtCodeFragment, val sourcePosition: Sour
 
                 val state = GenerationState.Builder(
                         fileForDebugger.project,
-                        if (!DEBUG_MODE) ClassBuilderFactories.binaries(false) else ClassBuilderFactories.TEST,
+                        if (!DEBUG_MODE) ClassBuilderFactories.BINARIES else ClassBuilderFactories.TEST,
                         moduleDescriptor,
                         bindingContext,
                         files,
@@ -529,7 +529,7 @@ class KotlinEvaluator(val codeFragment: KtCodeFragment, val sourcePosition: Sour
 
                 val filesToAnalyze = if (contextFile == null) listOf(this) else listOf(this, contextFile)
                 val resolutionFacade = KotlinCacheService.getInstance(project).getResolutionFacade(filesToAnalyze)
-                val analysisResult = resolutionFacade.analyzeFullyAndGetResult(filesToAnalyze)
+                val analysisResult = resolutionFacade.analyzeWithAllCompilerChecks(filesToAnalyze)
 
                 if (analysisResult.isError()) {
                     exception(analysisResult.error)

@@ -96,4 +96,36 @@ class LambdaReturnValueHintsTest : KotlinLightCodeInsightFixtureTestCase() {
             }"""
         )
     }
+
+    fun testElvisOperator() {
+        check(
+            """
+                fun foo() {
+                    run {
+                        val length: Int? = null
+                        <hint text="^run" />length ?: 0
+                    }
+                }
+            """.trimIndent()
+        )
+    }
+
+    fun testPostfixPrefixExpressions() {
+        check(
+            """
+                fun bar() {
+                    var test = 0
+                    run {
+                        test
+                        <hint text="^run"/>test++
+                    }
+
+                    run {
+                        test
+                        <hint text="^run"/>++test
+                    }
+                }
+            """.trimIndent()
+        )
+    }
 }

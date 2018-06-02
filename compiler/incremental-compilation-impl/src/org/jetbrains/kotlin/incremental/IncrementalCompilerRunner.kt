@@ -27,8 +27,7 @@ import org.jetbrains.kotlin.compilerRunner.toGeneratedFile
 import org.jetbrains.kotlin.config.Services
 import org.jetbrains.kotlin.incremental.components.ExpectActualTracker
 import org.jetbrains.kotlin.incremental.components.LookupTracker
-import org.jetbrains.kotlin.incremental.multiproject.ArtifactChangesProvider
-import org.jetbrains.kotlin.incremental.multiproject.ChangesRegistry
+import org.jetbrains.kotlin.incremental.parsing.classesFqNames
 import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.progress.CompilationCanceledStatus
 import java.io.File
@@ -42,8 +41,7 @@ abstract class IncrementalCompilerRunner<
         cacheDirName: String,
         protected val cacheVersions: List<CacheVersion>,
         protected val reporter: ICReporter,
-        protected val artifactChangesProvider: ArtifactChangesProvider?,
-        protected val changesRegistry: ChangesRegistry?
+        private val localStateDirs: Collection<File> = emptyList()
 ) {
 
     protected val cacheDirectory = File(workingDir, cacheDirName)
@@ -70,7 +68,15 @@ abstract class IncrementalCompilerRunner<
 
             caches.clean()
             dirtySourcesSinceLastTimeFile.delete()
-            destinationDir(args).deleteRecursively()
+
+            reporter.report { "Deleting output directories on rebuild:" }
+            for (dir in sequenceOf(destinationDir(args)) + localStateDirs.asSequence()) {
+                if (!dir.isDirectory) continue
+
+                dir.deleteRecursively()
+                dir.mkdirs()
+                reporter.report { "deleted $dir" }
+            }
 
             caches = createCacheManager(args)
             if (providedChangedFiles == null) {
@@ -271,18 +277,37 @@ abstract class IncrementalCompilerRunner<
         return exitCode
     }
 
+    protected fun getRemovedClassesChanges(
+        caches: IncrementalCachesManager<*>,
+        changedFiles: ChangedFiles.Known
+    ): DirtyData {
+        val removedClasses = HashSet<String>()
+        val dirtyFiles = changedFiles.modified.filterTo(HashSet()) { it.isKotlinFile() }
+        val removedFiles = changedFiles.removed.filterTo(HashSet()) { it.isKotlinFile() }
+
+        val existingClasses = classesFqNames(dirtyFiles)
+        val previousClasses = caches.platformCache
+            .classesFqNamesBySources(dirtyFiles + removedFiles)
+            .map { it.asString() }
+
+        for (fqName in previousClasses) {
+            if (fqName !in existingClasses) {
+                removedClasses.add(fqName)
+            }
+        }
+
+        val changesCollector = ChangesCollector()
+        removedClasses.forEach { changesCollector.collectSignature(FqName(it), areSubclassesAffected = true) }
+        return changesCollector.getDirtyData(listOf(caches.platformCache), reporter)
+    }
+
     open fun runWithNoDirtyKotlinSources(caches: CacheManager): Boolean = false
 
-    protected open fun processChangesAfterBuild(compilationMode: CompilationMode, currentBuildInfo: BuildInfo, dirtyData: DirtyData) {
-        if (changesRegistry == null) return
-
-        if (compilationMode is CompilationMode.Incremental) {
-            changesRegistry.registerChanges(currentBuildInfo.startTS, dirtyData)
-        }
-        else {
-            assert(compilationMode is CompilationMode.Rebuild) { "Unexpected compilation mode: ${compilationMode::class.java}" }
-            changesRegistry.unknownChanges(currentBuildInfo.startTS)
-        }
+    protected open fun processChangesAfterBuild(
+        compilationMode: CompilationMode,
+        currentBuildInfo: BuildInfo,
+        dirtyData: DirtyData
+    ) {
     }
 
     companion object {

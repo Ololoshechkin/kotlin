@@ -16,15 +16,14 @@
 
 package org.jetbrains.kotlin.ir.builders
 
+import org.jetbrains.kotlin.descriptors.FunctionDescriptor
+import org.jetbrains.kotlin.descriptors.TypeParameterDescriptor
 import org.jetbrains.kotlin.descriptors.VariableDescriptor
 import org.jetbrains.kotlin.ir.IrElement
 import org.jetbrains.kotlin.ir.declarations.IrVariable
 import org.jetbrains.kotlin.ir.expressions.*
 import org.jetbrains.kotlin.ir.expressions.impl.*
-import org.jetbrains.kotlin.ir.symbols.IrClassifierSymbol
-import org.jetbrains.kotlin.ir.symbols.IrFunctionSymbol
-import org.jetbrains.kotlin.ir.symbols.IrValueSymbol
-import org.jetbrains.kotlin.ir.symbols.IrVariableSymbol
+import org.jetbrains.kotlin.ir.symbols.*
 import org.jetbrains.kotlin.types.KotlinType
 import org.jetbrains.kotlin.utils.addToStdlib.assertedCast
 
@@ -89,7 +88,7 @@ fun IrBuilderWithScope.irExprBody(value: IrExpression) =
 fun IrBuilderWithScope.irReturn(value: IrExpression) =
     IrReturnImpl(
         startOffset, endOffset, context.builtIns.nothingType,
-        scope.scopeOwnerSymbol.assertedCast<IrFunctionSymbol> {
+        scope.scopeOwnerSymbol.assertedCast<IrReturnTargetSymbol> {
             "Function scope expected: ${scope.scopeOwner}"
         },
         value
@@ -146,11 +145,22 @@ fun IrBuilderWithScope.irNotEquals(arg1: IrExpression, arg2: IrExpression) =
 fun IrBuilderWithScope.irGet(receiver: IrExpression, getterSymbol: IrFunctionSymbol): IrCall =
     IrGetterCallImpl(startOffset, endOffset, getterSymbol, getterSymbol.descriptor, null, receiver, null, IrStatementOrigin.GET_PROPERTY)
 
-fun IrBuilderWithScope.irCall(callee: IrFunctionSymbol, type: KotlinType): IrCall =
-    IrCallImpl(startOffset, endOffset, type, callee, callee.descriptor, null)
+fun IrBuilderWithScope.irCall(
+    callee: IrFunctionSymbol,
+    type: KotlinType,
+    typeArguments: Map<TypeParameterDescriptor, KotlinType>? = null
+): IrCall =
+    IrCallImpl(startOffset, endOffset, type, callee, callee.descriptor, typeArguments)
 
 fun IrBuilderWithScope.irCall(callee: IrFunctionSymbol): IrCall =
     irCall(callee, callee.descriptor.returnType!!)
+
+fun IrBuilderWithScope.irCall(
+    calleeSymbol: IrFunctionSymbol,
+    calleeDescriptor: FunctionDescriptor,
+    typeArguments: Map<TypeParameterDescriptor, KotlinType>? = null
+): IrCall =
+    IrCallImpl(startOffset, endOffset, calleeDescriptor.returnType!!, calleeSymbol, calleeDescriptor, typeArguments)
 
 fun IrBuilderWithScope.irCallOp(callee: IrFunctionSymbol, dispatchReceiver: IrExpression, argument: IrExpression): IrCall =
     irCall(callee, callee.descriptor.returnType!!).apply {

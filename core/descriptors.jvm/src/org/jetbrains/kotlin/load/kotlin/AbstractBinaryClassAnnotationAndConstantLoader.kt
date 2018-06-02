@@ -20,17 +20,19 @@ import org.jetbrains.kotlin.descriptors.SourceElement
 import org.jetbrains.kotlin.descriptors.annotations.AnnotationUseSiteTarget
 import org.jetbrains.kotlin.load.java.JvmAbi
 import org.jetbrains.kotlin.load.java.JvmAnnotationNames
+import org.jetbrains.kotlin.metadata.ProtoBuf
+import org.jetbrains.kotlin.metadata.deserialization.*
+import org.jetbrains.kotlin.metadata.jvm.JvmProtoBuf
+import org.jetbrains.kotlin.metadata.jvm.JvmProtoBuf.propertySignature
+import org.jetbrains.kotlin.metadata.jvm.deserialization.ClassMapperLite
+import org.jetbrains.kotlin.metadata.jvm.deserialization.JvmProtoBufUtil
 import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.protobuf.MessageLite
-import org.jetbrains.kotlin.serialization.Flags
-import org.jetbrains.kotlin.serialization.ProtoBuf
-import org.jetbrains.kotlin.serialization.deserialization.*
-import org.jetbrains.kotlin.serialization.jvm.ClassMapperLite
-import org.jetbrains.kotlin.serialization.jvm.JvmProtoBuf
-import org.jetbrains.kotlin.serialization.jvm.JvmProtoBuf.propertySignature
-import org.jetbrains.kotlin.serialization.jvm.JvmProtoBufUtil
+import org.jetbrains.kotlin.serialization.deserialization.AnnotatedCallableKind
+import org.jetbrains.kotlin.serialization.deserialization.AnnotationAndConstantLoader
+import org.jetbrains.kotlin.serialization.deserialization.ProtoContainer
 import org.jetbrains.kotlin.storage.StorageManager
 import org.jetbrains.kotlin.types.KotlinType
 import java.util.*
@@ -120,7 +122,7 @@ abstract class AbstractBinaryClassAnnotationAndConstantLoader<A : Any, C : Any, 
     override fun loadEnumEntryAnnotations(container: ProtoContainer, proto: ProtoBuf.EnumEntry): List<A> {
         val signature = MemberSignature.fromFieldNameAndDesc(
                 container.nameResolver.getString(proto.name),
-                ClassMapperLite.mapClass((container as ProtoContainer.Class).classId)
+                ClassMapperLite.mapClass((container as ProtoContainer.Class).classId.asString())
         )
         return findClassAndLoadMemberAnnotations(container, signature)
     }
@@ -314,8 +316,8 @@ abstract class AbstractBinaryClassAnnotationAndConstantLoader<A : Any, C : Any, 
         val signature = proto.getExtensionOrNull(propertySignature) ?: return null
 
         if (field) {
-            val (name, desc) = JvmProtoBufUtil.getJvmFieldSignature(proto, nameResolver, typeTable) ?: return null
-            return MemberSignature.fromFieldNameAndDesc(name, desc)
+            val fieldSignature = JvmProtoBufUtil.getJvmFieldSignature(proto, nameResolver, typeTable) ?: return null
+            return MemberSignature.fromJvmMemberSignature(fieldSignature)
         }
         else if (synthetic && signature.hasSyntheticMethod()) {
             return MemberSignature.fromMethod(nameResolver, signature.syntheticMethod)
@@ -332,10 +334,10 @@ abstract class AbstractBinaryClassAnnotationAndConstantLoader<A : Any, C : Any, 
     ): MemberSignature? {
         return when {
             proto is ProtoBuf.Constructor -> {
-                MemberSignature.fromMethodNameAndDesc(JvmProtoBufUtil.getJvmConstructorSignature(proto, nameResolver, typeTable) ?: return null)
+                MemberSignature.fromJvmMemberSignature(JvmProtoBufUtil.getJvmConstructorSignature(proto, nameResolver, typeTable) ?: return null)
             }
             proto is ProtoBuf.Function -> {
-                MemberSignature.fromMethodNameAndDesc(JvmProtoBufUtil.getJvmMethodSignature(proto, nameResolver, typeTable) ?: return null)
+                MemberSignature.fromJvmMemberSignature(JvmProtoBufUtil.getJvmMethodSignature(proto, nameResolver, typeTable) ?: return null)
             }
             proto is ProtoBuf.Property -> {
                 val signature = proto.getExtensionOrNull(propertySignature) ?: return null

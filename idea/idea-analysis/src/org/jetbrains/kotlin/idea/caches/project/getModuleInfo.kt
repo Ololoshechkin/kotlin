@@ -5,11 +5,9 @@
 
 package org.jetbrains.kotlin.idea.caches.project
 
-import com.intellij.openapi.module.Module
+import com.intellij.ide.scratch.ScratchFileService
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.projectRoots.ProjectJdkTable
-import com.intellij.openapi.projectRoots.Sdk
 import com.intellij.openapi.roots.*
 import com.intellij.openapi.util.Key
 import com.intellij.openapi.vfs.VirtualFile
@@ -20,7 +18,9 @@ import org.jetbrains.kotlin.asJava.classes.FakeLightClassForFileOfPackage
 import org.jetbrains.kotlin.asJava.classes.KtLightClassForFacade
 import org.jetbrains.kotlin.asJava.elements.KtLightElement
 import org.jetbrains.kotlin.idea.caches.lightClasses.KtLightClassForDecompiledDeclaration
+import org.jetbrains.kotlin.idea.core.isInTestSourceContentKotlinAware
 import org.jetbrains.kotlin.idea.core.script.ScriptDependenciesManager
+import org.jetbrains.kotlin.idea.core.script.scriptRelatedModuleName
 import org.jetbrains.kotlin.idea.util.ProjectRootsUtil
 import org.jetbrains.kotlin.idea.util.isInSourceContentWithoutInjected
 import org.jetbrains.kotlin.idea.util.isKotlinBinary
@@ -59,40 +59,23 @@ fun getLibrarySourcesModuleInfos(project: Project, virtualFile: VirtualFile) =
         virtualFile
     )
 
-fun collectAllModuleInfosFromIdeaModel(project: Project): List<IdeaModuleInfo> {
-    val ideaModules = ModuleManager.getInstance(project).modules.toList()
-    val modulesSourcesInfos = ideaModules.flatMap(Module::correspondingModuleInfos)
+fun getScriptRelatedModuleInfo(project: Project, virtualFile: VirtualFile): ModuleSourceInfo? {
+    val projectFileIndex = ProjectFileIndex.SERVICE.getInstance(project)
 
-    //TODO: (module refactoring) include libraries that are not among dependencies of any module
-    val ideaLibraries = ideaModules.flatMap {
-        ModuleRootManager.getInstance(it).orderEntries.filterIsInstance<LibraryOrderEntry>().map {
-            it.library
-        }
-    }.filterNotNull().toSet()
-
-    val librariesInfos = ideaLibraries.map { LibraryInfo(project, it) }
-
-    val sdksFromModulesDependencies = ideaModules.flatMap {
-        ModuleRootManager.getInstance(it).orderEntries.filterIsInstance<JdkOrderEntry>().map {
-            it.jdk
-        }
+    val moduleRelatedModuleInfo = getModuleRelatedModuleInfo(projectFileIndex, virtualFile)
+    if (moduleRelatedModuleInfo != null) {
+        return moduleRelatedModuleInfo
     }
 
-    val sdksInfos = (sdksFromModulesDependencies + getAllProjectSdks()).filterNotNull().toSet().map {
-        SdkInfo(
-            project,
-            it
-        )
+    if (ScratchFileService.isInScratchRoot(virtualFile)) {
+        val scratchModule = virtualFile.scriptRelatedModuleName?.let { ModuleManager.getInstance(project).findModuleByName(it) }
+        return scratchModule?.testSourceInfo() ?: scratchModule?.productionSourceInfo()
     }
 
-    return modulesSourcesInfos + librariesInfos + sdksInfos
+    return null
 }
 
-internal fun getAllProjectSdks(): Collection<Sdk> {
-    return ProjectJdkTable.getInstance().allJdks.toList()
-}
-
-private typealias VirtualFileProcessor<T> = (Project, VirtualFile, Boolean) -> T
+private typealias VirtualFileProcessor<T> = (Project, VirtualFile, Boolean, Boolean) -> T
 
 private sealed class ModuleInfoCollector<out T>(
     val onResult: (IdeaModuleInfo?) -> T,
@@ -105,11 +88,12 @@ private sealed class ModuleInfoCollector<out T>(
             LOG.error("Could not find correct module information.\nReason: $reason")
             NotUnderContentRootModuleInfo
         },
-        virtualFileProcessor = processor@ { project, virtualFile, isLibrarySource ->
+        virtualFileProcessor = processor@ { project, virtualFile, isLibrarySource, isScript ->
             collectInfosByVirtualFile(
                 project,
                 virtualFile,
                 isLibrarySource,
+                isScript,
                 {
                     return@processor it ?: NotUnderContentRootModuleInfo
                 })
@@ -122,11 +106,12 @@ private sealed class ModuleInfoCollector<out T>(
             LOG.warn("Could not find correct module information.\nReason: $reason")
             null
         },
-        virtualFileProcessor = processor@ { project, virtualFile, isLibrarySource ->
+        virtualFileProcessor = processor@ { project, virtualFile, isLibrarySource, isScript ->
             collectInfosByVirtualFile(
                 project,
                 virtualFile,
                 isLibrarySource,
+                isScript,
                 { return@processor it })
         }
     )
@@ -137,12 +122,13 @@ private sealed class ModuleInfoCollector<out T>(
             LOG.warn("Could not find correct module information.\nReason: $reason")
             emptySequence()
         },
-        virtualFileProcessor = { project, virtualFile, isLibrarySource ->
+        virtualFileProcessor = { project, virtualFile, isLibrarySource, isScript ->
             buildSequence {
                 collectInfosByVirtualFile(
                     project,
                     virtualFile,
                     isLibrarySource,
+                    isScript,
                     { yieldIfNotNull(it) })
             }
         }
@@ -187,7 +173,8 @@ private fun <T> PsiElement.collectInfos(c: ModuleInfoCollector<T>): T {
     return c.virtualFileProcessor(
         project,
         virtualFile,
-        (containingFile as? KtFile)?.isCompiled ?: false
+        (containingFile as? KtFile)?.isCompiled ?: false,
+        containingKtFile?.isScript() ?: false
     )
 }
 
@@ -197,7 +184,8 @@ private fun <T> KtLightElement<*, *>.processLightElement(c: ModuleInfoCollector<
         return c.virtualFileProcessor(
             project,
             containingFile.virtualFile.sure { "Decompiled class should be build from physical file" },
-            false
+            false,
+            (containingFile as? KtFile)?.isScript() ?: false
         )
     }
 
@@ -211,44 +199,56 @@ private fun <T> KtLightElement<*, *>.processLightElement(c: ModuleInfoCollector<
 }
 
 private inline fun <T> collectInfosByVirtualFile(
-    project: Project, virtualFile: VirtualFile,
-    treatAsLibrarySource: Boolean, onOccurrence: (IdeaModuleInfo?) -> T
+    project: Project,
+    virtualFile: VirtualFile,
+    treatAsLibrarySource: Boolean,
+    isScript: Boolean = getScriptDefinition(virtualFile, project) != null,
+    onOccurrence: (IdeaModuleInfo?) -> T
 ): T {
+    if (isScript) {
+        getScriptDefinition(virtualFile, project)?.let {
+            onOccurrence(ScriptModuleInfo(project, virtualFile, it))
+        }
+    }
+
     val projectFileIndex = ProjectFileIndex.SERVICE.getInstance(project)
 
-    val module = projectFileIndex.getModuleForFile(virtualFile)
-    if (module != null && !module.isDisposed) {
-        val moduleFileIndex = ModuleRootManager.getInstance(module).fileIndex
-        if (moduleFileIndex.isInTestSourceContent(virtualFile)) {
-            onOccurrence(module.testSourceInfo())
-        } else if (moduleFileIndex.isInSourceContentWithoutInjected(virtualFile)) {
-            onOccurrence(module.productionSourceInfo())
-        }
+    val moduleRelatedModuleInfo = getModuleRelatedModuleInfo(projectFileIndex, virtualFile)
+    if (moduleRelatedModuleInfo != null) {
+        onOccurrence(moduleRelatedModuleInfo)
     }
 
     projectFileIndex.getOrderEntriesForFile(virtualFile).forEach {
         it.toIdeaModuleInfo(project, virtualFile, treatAsLibrarySource)?.let(onOccurrence)
     }
 
-    val scriptDefinition = getScriptDefinition(virtualFile, project)
-    if (scriptDefinition != null) {
-        onOccurrence(ScriptModuleInfo(project, virtualFile, scriptDefinition))
-    }
-
     val isBinary = virtualFile.fileType.isKotlinBinary()
     val scriptConfigurationManager = ScriptDependenciesManager.getInstance(project)
     if (isBinary && virtualFile in scriptConfigurationManager.getAllScriptsClasspathScope()) {
         if (treatAsLibrarySource) {
-            onOccurrence(ScriptDependenciesSourceModuleInfo(project))
+            onOccurrence(ScriptDependenciesSourceInfo.ForProject(project))
         } else {
-            onOccurrence(ScriptDependenciesModuleInfo(project, null))
+            onOccurrence(ScriptDependenciesInfo.ForProject(project))
         }
     }
     if (!isBinary && virtualFile in scriptConfigurationManager.getAllLibrarySourcesScope()) {
-        onOccurrence(ScriptDependenciesSourceModuleInfo(project))
+        onOccurrence(ScriptDependenciesSourceInfo.ForProject(project))
     }
 
     return onOccurrence(null)
+}
+
+private fun getModuleRelatedModuleInfo(projectFileIndex: ProjectFileIndex, virtualFile: VirtualFile): ModuleSourceInfo? {
+    val module = projectFileIndex.getModuleForFile(virtualFile)
+    if (module != null && !module.isDisposed) {
+        val moduleFileIndex = ModuleRootManager.getInstance(module).fileIndex
+        if (moduleFileIndex.isInTestSourceContentKotlinAware(virtualFile)) {
+            return module.testSourceInfo()
+        } else if (moduleFileIndex.isInSourceContentWithoutInjected(virtualFile)) {
+            return module.productionSourceInfo()
+        }
+    }
+    return null
 }
 
 private inline fun <reified T : IdeaModuleInfo> collectModuleInfosByType(project: Project, virtualFile: VirtualFile): Collection<T> {
