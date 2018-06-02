@@ -320,6 +320,9 @@
     <projectService serviceInterface="org.jetbrains.kotlin.config.KotlinFacetSettingsProvider"
                     serviceImplementation="org.jetbrains.kotlin.idea.facet.KotlinFacetSettingsProviderImpl"/>
 
+    <projectService serviceInterface="org.jetbrains.kotlin.idea.framework.LibraryEffectiveKindProvider"
+                    serviceImplementation="org.jetbrains.kotlin.idea.framework.LibraryEffectiveKindProviderImpl"/>
+
     <projectService serviceInterface="org.jetbrains.kotlin.idea.core.NotPropertiesService"
                     serviceImplementation="org.jetbrains.kotlin.idea.intentions.NotPropertiesServiceImpl"/>
 
@@ -813,6 +816,15 @@
     <resolveScopeEnlarger implementation="org.jetbrains.kotlin.idea.CommonModuleResolveScopeEnlarger"/>
 
     <sdkType implementation="org.jetbrains.kotlin.idea.framework.KotlinSdkType"/>
+
+    <moduleConfigurationEditorProvider implementation="org.jetbrains.kotlin.idea.roots.ui.NonJvmKotlinModuleEditorsProvider"/>
+
+    <projectStructure.sourceRootEditHandler implementation="org.jetbrains.kotlin.idea.roots.ui.KotlinModuleSourceRootEditHandler$Source"/>
+    <projectStructure.sourceRootEditHandler implementation="org.jetbrains.kotlin.idea.roots.ui.KotlinModuleSourceRootEditHandler$TestSource"/>
+    <projectStructure.sourceRootEditHandler implementation="org.jetbrains.kotlin.idea.roots.ui.KotlinModuleSourceRootEditHandler$Resource"/>
+    <projectStructure.sourceRootEditHandler implementation="org.jetbrains.kotlin.idea.roots.ui.KotlinModuleSourceRootEditHandler$TestResource"/>
+
+    <project.converterProvider implementation="org.jetbrains.kotlin.idea.roots.KotlinNonJvmSourceRootConverterProvider"/>
 
     <intentionAction>
       <className>org.jetbrains.kotlin.idea.intentions.FoldInitializerAndIfToElvisIntention</className>
@@ -2839,6 +2851,15 @@
                      groupName="Style issues"
                      enabledByDefault="true"
                      level="WEAK WARNING"
+                     language="kotlin"
+    />
+
+    <localInspection implementationClass="org.jetbrains.kotlin.idea.inspections.coroutines.DeferredResultUnusedInspection"
+                     displayName="Deferred result is never used"
+                     groupPath="Kotlin"
+                     groupName="Probable bugs"
+                     enabledByDefault="true"
+                     level="WARNING"
                      language="kotlin"
     />
 

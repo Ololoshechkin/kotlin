@@ -1,5 +1,4 @@
 
-import com.sun.javafx.scene.CameraHelper.project
 import java.io.File
 import org.gradle.api.tasks.bundling.Jar
 import org.jetbrains.kotlin.gradle.dsl.KotlinCompile
@@ -75,17 +74,11 @@ dependencies {
     testCompile(projectTests(":generators:test-generator"))
     testCompile(project(":compiler:ir.ir2cfg"))
     testCompile(project(":compiler:ir.tree")) // used for deepCopyWithSymbols call that is removed by proguard from the compiler TODO: make it more straightforward
-    testCompileOnly(projectRuntimeJar(":kotlin-daemon-client")) // TODO : testCompileOnly(project(":kotlin-daemon-client"))
-    testCompile(project(":compiler:daemon")) // +
-    testCompile(project(":compiler:daemon-common")) // +
+    testCompile(project(":kotlin-scripting-compiler"))
+    testCompile(project(":kotlin-scripting-misc"))
+    testCompile(project(":kotlin-script-util"))
+    testCompileOnly(projectRuntimeJar(":kotlin-daemon-client"))
     testCompileOnly(project(":kotlin-reflect-api"))
-    testCompile(commonDep("org.jetbrains.kotlinx", "kotlinx-coroutines-jdk8")) { isTransitive = false }
-    testCompile(commonDep("io.ktor", "ktor-network")) {
-        exclude(group = "org.jetbrains.kotlin", module = "kotlin-reflect")
-        exclude(group = "org.jetbrains.kotlin", module = "kotlin-stdlib")
-        exclude(group = "org.jetbrains.kotlin", module = "kotlin-stdlib-jdk8")
-        exclude(group = "org.jetbrains.kotlin", module = "kotlin-stdlib-jdk7")
-    }
     otherCompilerModules.forEach {
         testCompileOnly(project(it))
     }
@@ -94,15 +87,6 @@ dependencies {
 
     testRuntime(projectDist(":kotlin-reflect"))
     testRuntime(projectDist(":kotlin-daemon-client"))
-    testRuntime(project(":compiler:daemon")) // +
-    testRuntime(project(":compiler:daemon-common")) // +
-    testRuntime(commonDep("org.jetbrains.kotlinx", "kotlinx-coroutines-jdk8")) { isTransitive = false }
-    testRuntime(commonDep("io.ktor", "ktor-network")) {
-        exclude(group = "org.jetbrains.kotlin", module = "kotlin-reflect")
-        exclude(group = "org.jetbrains.kotlin", module = "kotlin-stdlib")
-        exclude(group = "org.jetbrains.kotlin", module = "kotlin-stdlib-jdk8")
-        exclude(group = "org.jetbrains.kotlin", module = "kotlin-stdlib-jdk7")
-    }
     testRuntime(androidDxJar())
     testRuntime(files(toolsJar()))
 
@@ -220,11 +204,3 @@ codegenTest(target = 10, jvm = 10) {
 val generateTests by generator("org.jetbrains.kotlin.generators.tests.GenerateCompilerTestsKt")
 
 testsJar()
-
-allprojects {
-    tasks.withType<KotlinCompile<*>> {
-        kotlinOptions {
-            freeCompilerArgs -= ("-Xnew-inference")
-        }
-    }
-}

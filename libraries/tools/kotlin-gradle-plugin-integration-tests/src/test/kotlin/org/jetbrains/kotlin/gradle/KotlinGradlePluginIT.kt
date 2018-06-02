@@ -806,5 +806,4 @@ class KotlinGradleIT : BaseGradleIT() {
             assertNotNull(metaInfDir.listFiles().singleOrNull { it.name.endsWith(".kotlin_module") })
         }
     }
-
 }

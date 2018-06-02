@@ -52,6 +52,9 @@ messages/**)
 -dontwarn com.intellij.util.io.TarUtil
 -dontwarn org.slf4j.**
 
+# Depends on apache batik which has lots of dependencies
+-dontwarn com.intellij.util.SVGLoader*
+
 #-libraryjars '<rtjar>'
 #-libraryjars '<jssejar>'
 #-libraryjars '<bootstrap.runtime>'
@@ -216,8 +219,5 @@ messages/**)
 
 # remove when KT-18563 would be fixed
 -keep class org.jetbrains.kotlin.psi.psiUtil.PsiUtilsKt { *; }
-
-# for imports dumper in compiler
--keep class kotlinx.serialization.** { *; }
 
 -keep class net.jpountz.lz4.* { *; }
