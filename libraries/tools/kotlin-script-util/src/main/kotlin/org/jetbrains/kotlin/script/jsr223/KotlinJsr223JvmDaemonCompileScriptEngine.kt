@@ -78,7 +78,11 @@ class KotlinJsr223JvmDaemonCompileScriptEngine(
 
         val daemonReportMessages = arrayListOf<DaemonReportMessage>()
 
-        return KotlinCompilerClient.connectToCompileService(compilerId, daemonJVMOptions, daemonOptions, DaemonReportingTargets(null, daemonReportMessages), true, true)
+        return KotlinCompilerClient.connectToCompileService(compilerId, daemonJVMOptions, daemonOptions,
+                                                            DaemonReportingTargets(
+                                                                null,
+                                                                daemonReportMessages
+                                                            ), true, true)
                ?: throw ScriptException("Unable to connect to repl server:" + daemonReportMessages.joinToString("\n  ", prefix = "\n  ") { "${it.category.name} ${it.message}" })
     }
 }

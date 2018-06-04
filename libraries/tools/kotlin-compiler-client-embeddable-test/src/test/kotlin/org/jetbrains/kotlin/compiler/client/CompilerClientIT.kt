@@ -27,6 +27,7 @@ import org.jetbrains.kotlin.daemon.common.*
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageLocation
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
 import org.jetbrains.kotlin.cli.common.messages.MessageCollector
+import org.jetbrains.kotlin.daemon.client.experimental.DaemonReportingTargets
 import java.io.ByteArrayOutputStream
 import java.io.PrintStream
 
@@ -65,7 +66,7 @@ class CompilerClientIT {
         val daemonReportMessages = arrayListOf<DaemonReportMessage>()
 
         KotlinCompilerClient.connectToCompileService(compilerId, clientAliveFile, daemonJVMOptions, daemonOptions,
-                DaemonReportingTargets(messages = daemonReportMessages), true)
+                                                     DaemonReportingTargets(messages = daemonReportMessages), true)
                 ?: throw IllegalStateException("Unable to connect to compiler daemon:" + daemonReportMessages.joinToString("\n  ", prefix = "\n  ") { "${it.category.name} ${it.message}" })
     }
 

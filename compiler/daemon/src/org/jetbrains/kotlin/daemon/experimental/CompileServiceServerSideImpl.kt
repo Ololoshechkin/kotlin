@@ -42,15 +42,14 @@ import org.jetbrains.kotlin.daemon.common.experimental.Profiler
 import org.jetbrains.kotlin.daemon.common.experimental.WallAndThreadAndMemoryTotalProfiler
 import org.jetbrains.kotlin.daemon.common.experimental.WallAndThreadTotalProfiler
 import org.jetbrains.kotlin.daemon.common.experimental.socketInfrastructure.*
-import org.jetbrains.kotlin.daemon.incremental.experimental.RemoteAnnotationsFileUpdaterAsync
-import org.jetbrains.kotlin.daemon.incremental.experimental.RemoteArtifactChangesProviderAsync
-import org.jetbrains.kotlin.daemon.incremental.experimental.RemoteChangesRegistryAsync
 import org.jetbrains.kotlin.daemon.nowSeconds
 import org.jetbrains.kotlin.daemon.report.experimental.CompileServicesFacadeMessageCollector
 import org.jetbrains.kotlin.daemon.report.experimental.DaemonMessageReporterAsync
 import org.jetbrains.kotlin.daemon.report.experimental.RemoteICReporterAsync
 import org.jetbrains.kotlin.incremental.*
 import org.jetbrains.kotlin.incremental.components.LookupTracker
+import org.jetbrains.kotlin.incremental.multiproject.ModulesApiHistoryAndroid
+import org.jetbrains.kotlin.incremental.multiproject.ModulesApiHistoryJvm
 import org.jetbrains.kotlin.incremental.parsing.classesFqNames
 import org.jetbrains.kotlin.load.kotlin.incremental.components.IncrementalCompilationComponents
 import org.jetbrains.kotlin.modules.Module
@@ -611,11 +610,6 @@ class CompileServiceServerSideImpl(
         daemonMessageReporterAsync: DaemonMessageReporterAsync
     ): ExitCode {
         val reporter = RemoteICReporterAsync(servicesFacade, compilationResults, incrementalCompilationOptions)
-        val annotationFileUpdater =
-            if (servicesFacade.hasAnnotationsFileUpdater())
-                RemoteAnnotationsFileUpdaterAsync(servicesFacade)
-            else
-                null
 
         val moduleFile = k2jvmArgs.buildFile?.let(::File)
         assert(moduleFile?.exists() ?: false) { "Module does not exist ${k2jvmArgs.buildFile}" }
@@ -649,9 +643,6 @@ class CompileServiceServerSideImpl(
             ChangedFiles.Unknown()
         }
 
-        val artifactChanges = RemoteArtifactChangesProviderAsync(servicesFacade)
-        val changesRegistry = RemoteChangesRegistryAsync(servicesFacade)
-
         val workingDir = incrementalCompilationOptions.workingDir
         val versions = commonCacheVersions(workingDir) +
                 customCacheVersion(
@@ -661,14 +652,23 @@ class CompileServiceServerSideImpl(
                     enabled = true
                 )
 
+        val modulesApiHistory = incrementalCompilationOptions.run {
+            if (!multiModuleICSettings.useModuleDetection) {
+                ModulesApiHistoryJvm(modulesInfo)
+            } else {
+                ModulesApiHistoryAndroid(modulesInfo)
+            }
+        }
+
         val compiler = IncrementalJvmCompilerRunner(
-            workingDir, javaSourceRoots, versions,
-            reporter, annotationFileUpdater,
-            artifactChanges, changesRegistry,
-            buildHistoryFile = incrementalCompilationOptions.resultDifferenceFile,
-            friendBuildHistoryFile = incrementalCompilationOptions.friendDifferenceFile,
+            workingDir,
+            javaSourceRoots,
+            versions,
+            reporter,
+            buildHistoryFile = incrementalCompilationOptions.multiModuleICSettings.buildHistoryFile,
+            localStateDirs = incrementalCompilationOptions.localStateDirs,
             usePreciseJavaTracking = incrementalCompilationOptions.usePreciseJavaTracking,
-            localStateDirs = incrementalCompilationOptions.localStateDirs
+            modulesApiHistory = modulesApiHistory
         )
         return compiler.compile(allKotlinFiles, k2jvmArgs, compilerMessageCollector, changedFiles)
     }
