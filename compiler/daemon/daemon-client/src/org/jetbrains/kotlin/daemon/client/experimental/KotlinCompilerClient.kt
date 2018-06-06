@@ -12,8 +12,8 @@ import kotlinx.coroutines.experimental.async
 import kotlinx.coroutines.experimental.runBlocking
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
 import org.jetbrains.kotlin.cli.common.messages.MessageCollector
-import org.jetbrains.kotlin.daemon.client.DaemonReportMessage
-import org.jetbrains.kotlin.daemon.client.DaemonReportingTargets
+import org.jetbrains.kotlin.daemon.client.impls.DaemonReportMessage
+import org.jetbrains.kotlin.daemon.client.impls.DaemonReportingTargets
 import org.jetbrains.kotlin.daemon.client.KotlinCompilerDaemonClient
 import org.jetbrains.kotlin.daemon.common.*
 import org.jetbrains.kotlin.daemon.common.experimental.*
@@ -34,7 +34,7 @@ import kotlin.concurrent.thread
 data class CompileServiceSession(val compileService: CompileServiceClientSide, val sessionId: Int)
 
 
-object KotlinCompilerClient : KotlinCompilerDaemonClient {
+class KotlinCompilerClient : KotlinCompilerDaemonClient {
 
     val DAEMON_DEFAULT_STARTUP_TIMEOUT_MS = 10000L
     val DAEMON_CONNECT_CYCLE_ATTEMPTS = 3
@@ -247,9 +247,7 @@ object KotlinCompilerClient : KotlinCompilerDaemonClient {
     private fun configureClientOptions(): ClientOptions =
         configureClientOptions(ClientOptions())
 
-
-    @JvmStatic
-    fun main(vararg args: String) {
+    override fun main(vararg args: String) {
         runBlocking(Unconfined) {
             val compilerId = CompilerId()
             val daemonOptions = configureDaemonOptions()

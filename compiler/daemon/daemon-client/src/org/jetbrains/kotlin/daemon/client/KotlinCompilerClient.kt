@@ -9,6 +9,7 @@ import io.ktor.network.sockets.Socket
 import kotlinx.coroutines.experimental.runBlocking
 import org.jetbrains.kotlin.cli.common.messages.MessageCollector
 import org.jetbrains.kotlin.daemon.client.experimental.CompileServiceSession
+import org.jetbrains.kotlin.daemon.client.impls.DaemonReportingTargets
 import org.jetbrains.kotlin.daemon.common.*
 import org.jetbrains.kotlin.daemon.common.experimental.*
 import org.jetbrains.kotlin.daemon.common.experimental.Profiler
@@ -16,9 +17,9 @@ import org.jetbrains.kotlin.daemon.common.experimental.socketInfrastructure.Serv
 import java.io.File
 import java.io.Serializable
 
-object KotlinCompilerClient : KotlinCompilerDaemonClient {
+class KotlinCompilerClient : KotlinCompilerDaemonClient {
 
-    private val oldKotlinCompilerClient = org.jetbrains.kotlin.daemon.client.KotlinCompilerClient
+    private val oldKotlinCompilerClient = org.jetbrains.kotlin.daemon.client.impls.KotlinCompilerClientImpl
 
     override suspend fun connectToCompileService(
         compilerId: CompilerId,
@@ -52,13 +53,13 @@ object KotlinCompilerClient : KotlinCompilerDaemonClient {
         autostart
     )?.toClient()
 
-    private fun org.jetbrains.kotlin.daemon.client.CompileServiceSession.toWrapper() =
+    private fun org.jetbrains.kotlin.daemon.client.impls.CompileServiceSession.toWrapper() =
         CompileServiceSession(
             this.compileService.toClient(),
             this.sessionId
         )
 
-    private fun CompileServiceSession.unwrap() = CompileServiceSession(
+    private fun CompileServiceSession.unwrap() = org.jetbrains.kotlin.daemon.client.impls.CompileServiceSession(
         this.compileService.toRMI(),
         this.sessionId
     )
@@ -176,5 +177,7 @@ object KotlinCompilerClient : KotlinCompilerDaemonClient {
         }
         return oldCompResults.toServer()
     }
+
+    override fun main(vararg args: String) = oldKotlinCompilerClient.main(*args)
 
 }

@@ -1,23 +1,16 @@
 /*
- * Copyright 2010-2015 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license
+ * that can be found in the license/LICENSE.txt file.
  */
 
-package org.jetbrains.kotlin.daemon.client
+package org.jetbrains.kotlin.daemon.client.impls
 
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
 import org.jetbrains.kotlin.cli.common.messages.MessageCollector
+import org.jetbrains.kotlin.daemon.client.BasicCompilerServicesWithResultsFacadeServer
+import org.jetbrains.kotlin.daemon.client.CompilerCallbackServicesFacadeServer
+import org.jetbrains.kotlin.daemon.client.RemoteOutputStreamServer
+import org.jetbrains.kotlin.daemon.client.launchProcessWithFallback
 import org.jetbrains.kotlin.daemon.common.*
 import org.jetbrains.kotlin.incremental.components.LookupTracker
 import org.jetbrains.kotlin.load.kotlin.incremental.components.IncrementalCompilationComponents
@@ -67,7 +60,14 @@ object KotlinCompilerClientImpl {
         checkId: Boolean
     ): CompileService? {
         val flagFile = getOrCreateClientFlagFile(daemonOptions)
-        return connectToCompileService(compilerId, flagFile, daemonJVMOptions, daemonOptions, reportingTargets, autostart)
+        return connectToCompileService(
+            compilerId,
+            flagFile,
+            daemonJVMOptions,
+            daemonOptions,
+            reportingTargets,
+            autostart
+        )
     }
 
     fun connectToCompileService(
@@ -99,38 +99,45 @@ object KotlinCompilerClientImpl {
         autostart: Boolean,
         leaseSession: Boolean,
         sessionAliveFlagFile: File? = null
-    ): CompileServiceSession? = connectLoop(reportingTargets, autostart) { isLastAttempt ->
+    ): CompileServiceSession? =
+        connectLoop(reportingTargets, autostart) { isLastAttempt ->
 
-        fun CompileService.leaseImpl(): CompileServiceSession? {
-            // the newJVMOptions could be checked here for additional parameters, if needed
-            registerClient(clientAliveFlagFile.absolutePath)
-            reportingTargets.report(DaemonReportCategory.DEBUG, "connected to the daemon")
+            fun CompileService.leaseImpl(): CompileServiceSession? {
+                // the newJVMOptions could be checked here for additional parameters, if needed
+                registerClient(clientAliveFlagFile.absolutePath)
+                reportingTargets.report(DaemonReportCategory.DEBUG, "connected to the daemon")
 
-            if (!leaseSession) return CompileServiceSession(this, CompileService.NO_SESSION)
+                if (!leaseSession) return CompileServiceSession(this, CompileService.NO_SESSION)
 
-            return leaseCompileSession(sessionAliveFlagFile?.absolutePath).takeUnless { it is CompileService.CallResult.Dying }?.let {
-                CompileServiceSession(this, it.get())
-            }
-        }
-
-        ensureServerHostnameIsSetUp()
-        val (service, newJVMOptions) = tryFindSuitableDaemonOrNewOpts(
-            File(daemonOptions.runFilesPath),
-            compilerId,
-            daemonJVMOptions,
-            { cat, msg -> reportingTargets.report(cat, msg) })
-
-        if (service != null) {
-            service.leaseImpl()
-        } else {
-            if (!isLastAttempt && autostart) {
-                if (startDaemon(compilerId, newJVMOptions, daemonOptions, reportingTargets)) {
-                    reportingTargets.report(DaemonReportCategory.DEBUG, "new daemon started, trying to find it")
+                return leaseCompileSession(sessionAliveFlagFile?.absolutePath).takeUnless { it is CompileService.CallResult.Dying }?.let {
+                    CompileServiceSession(this, it.get())
                 }
             }
-            null
+
+            ensureServerHostnameIsSetUp()
+            val (service, newJVMOptions) = tryFindSuitableDaemonOrNewOpts(
+                File(daemonOptions.runFilesPath),
+                compilerId,
+                daemonJVMOptions,
+                { cat, msg -> reportingTargets.report(cat, msg) })
+
+            if (service != null) {
+                service.leaseImpl()
+            } else {
+                if (!isLastAttempt && autostart) {
+                    if (startDaemon(
+                            compilerId,
+                            newJVMOptions,
+                            daemonOptions,
+                            reportingTargets
+                        )
+                    ) {
+                        reportingTargets.report(DaemonReportCategory.DEBUG, "new daemon started, trying to find it")
+                    }
+                }
+                null
+            }
         }
-    }
 
     fun shutdownCompileService(compilerId: CompilerId, daemonOptions: DaemonOptions): Unit {
         connectToCompileService(
@@ -223,7 +230,8 @@ object KotlinCompilerClientImpl {
         port: Int = SOCKET_ANY_FREE_PORT,
         profiler: Profiler = DummyProfiler()
     ): Int = profiler.withMeasure(this) {
-        val services = BasicCompilerServicesWithResultsFacadeServer(messageCollector, outputsCollector, port)
+        val services =
+            BasicCompilerServicesWithResultsFacadeServer(messageCollector, outputsCollector, port)
         compilerService.compile(
             sessionId,
             args,
@@ -265,10 +273,9 @@ object KotlinCompilerClientImpl {
         return opts
     }
 
-    private fun configureClientOptions(): ClientOptions = configureClientOptions(ClientOptions())
-
-
-    @JvmStatic
+    private fun configureClientOptions(): ClientOptions =
+        configureClientOptions(ClientOptions())
+    
     fun main(vararg args: String) {
         val compilerId = CompilerId()
         val daemonOptions = configureDaemonOptions()

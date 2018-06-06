@@ -7,9 +7,10 @@ package org.jetbrains.kotlin.daemon.client
 
 import org.jetbrains.kotlin.cli.common.messages.MessageCollector
 import org.jetbrains.kotlin.daemon.client.experimental.CompileServiceSession
+import org.jetbrains.kotlin.daemon.client.impls.DaemonReportingTargets
 import org.jetbrains.kotlin.daemon.common.*
 import org.jetbrains.kotlin.daemon.common.experimental.CompilationResultsServerSide
-import org.jetbrains.kotlin.daemon.common.experimental.CompileServiceClientSide
+import org.jetbrains.kotlin.daemon.common.CompileServiceClientSide
 import org.jetbrains.kotlin.daemon.common.experimental.DummyProfiler
 import org.jetbrains.kotlin.daemon.common.experimental.Profiler
 import java.io.File
@@ -66,16 +67,44 @@ interface KotlinCompilerDaemonClient {
         RMI, SOCKETS
     }
 
+    fun main(vararg args: String)
+
     companion object {
         fun instantiate(version: Version): KotlinCompilerDaemonClient =
             when (version) {
-                Version.RMI -> {
-                    org.jetbrains.kotlin.daemon.client.experimental.KotlinCompilerClient
-                }
-                Version.SOCKETS -> {
-                    KotlinCompilerClient
-                }
+                Version.RMI ->
+                    ClassLoader
+                        .getSystemClassLoader()
+                        .loadClass("org.jetbrains.kotlin.daemon.client.experimental.KotlinCompilerClient")
+                        .newInstance() as KotlinCompilerDaemonClient
+
+                Version.SOCKETS ->
+                    ClassLoader
+                        .getSystemClassLoader()
+                        .loadClass("org.jetbrains.kotlin.daemon.client.KotlinCompilerClient")
+                        .newInstance() as KotlinCompilerDaemonClient
             }
+    }
+
+}
+
+object KotlinCompilerClientInstance {
+
+    private const val RMI_FLAG = "-old"
+    private const val SOCKETS_FLAG = "-new"
+
+    @JvmStatic
+    fun main(vararg args: String) {
+        val clientInstance: KotlinCompilerDaemonClient? = when (args[0]) {
+            RMI_FLAG ->
+                KotlinCompilerDaemonClient
+                    .instantiate(KotlinCompilerDaemonClient.Version.RMI)
+            SOCKETS_FLAG ->
+                KotlinCompilerDaemonClient
+                    .instantiate(KotlinCompilerDaemonClient.Version.SOCKETS)
+            else -> null
+        }
+        clientInstance?.main(*args.sliceArray(1..args.size))
     }
 
 }

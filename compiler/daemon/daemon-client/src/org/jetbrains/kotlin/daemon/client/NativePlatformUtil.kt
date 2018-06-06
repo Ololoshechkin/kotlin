@@ -16,6 +16,8 @@
 
 package org.jetbrains.kotlin.daemon.client
 
+import org.jetbrains.kotlin.daemon.client.impls.DaemonReportingTargets
+import org.jetbrains.kotlin.daemon.client.impls.report
 import org.jetbrains.kotlin.daemon.common.DaemonReportCategory
 import java.io.IOException
 
