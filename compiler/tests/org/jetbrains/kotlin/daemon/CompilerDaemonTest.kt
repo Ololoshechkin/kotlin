@@ -26,6 +26,8 @@ import org.jetbrains.kotlin.daemon.client.*
 import org.jetbrains.kotlin.daemon.client.impls.DaemonReportingTargets
 import org.jetbrains.kotlin.daemon.common.*
 import org.jetbrains.kotlin.daemon.common.CompileServiceClientSide
+import org.jetbrains.kotlin.daemon.experimental.integration.TestMessageCollector
+import org.jetbrains.kotlin.daemon.experimental.integration.assertHasMessage
 import org.jetbrains.kotlin.integration.KotlinIntegrationTestBase
 import org.jetbrains.kotlin.progress.CompilationCanceledStatus
 import org.jetbrains.kotlin.test.KotlinTestUtils

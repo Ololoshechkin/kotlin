@@ -14,6 +14,7 @@ import org.jetbrains.kotlin.cli.jvm.K2JVMCompiler
 import org.jetbrains.kotlin.cli.metadata.K2MetadataCompiler
 import org.jetbrains.kotlin.daemon.CompileServiceImpl
 import org.jetbrains.kotlin.daemon.CompilerSelector
+import org.jetbrains.kotlin.daemon.client.KotlinCompilerDaemonClient
 import org.jetbrains.kotlin.daemon.client.experimental.BasicCompilerServicesWithResultsFacadeServerServerSide
 import org.jetbrains.kotlin.daemon.client.experimental.KotlinCompilerClient
 import org.jetbrains.kotlin.daemon.common.*
@@ -33,6 +34,8 @@ import kotlin.concurrent.schedule
 
 
 class ConnectionsTest : KotlinIntegrationTestBase() {
+
+    val kotlinCompilerClient = KotlinCompilerDaemonClient.instantiate(KotlinCompilerDaemonClient.Version.SOCKETS)
 
     private val logFile = createTempFile("/Users/jetbrains/Documents/kotlin/my_fork/kotlin", ".txt").also {
         println("client log file path : ${it.loggerCompatiblePath}")
@@ -347,7 +350,7 @@ class ConnectionsTest : KotlinIntegrationTestBase() {
                 )
                 services.runServer()
                 val servicesClient = services.clientSide
-                val compResultsClient = KotlinCompilerClient.createCompResults().clientSide
+                val compResultsClient = kotlinCompilerClient.createCompResults().clientSide
                 val threadCount = 10
                 fun runThread(i: Int) =
                     async(newSingleThreadContext("thread_$i")) {
