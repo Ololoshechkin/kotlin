@@ -44,6 +44,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.logging.LogManager
 import kotlin.concurrent.thread
+import kotlin.reflect.KClass
 import kotlin.script.dependencies.Environment
 import kotlin.script.dependencies.ScriptContents
 import kotlin.script.experimental.dependencies.DependenciesResolver
@@ -745,7 +746,7 @@ class CompilerDaemonTest : KotlinIntegrationTestBase() {
                 withLogFile("kotlin-daemon-test") { logFile ->
 
 
-//                    val cfg: String =
+                    //                    val cfg: String =
 //                        "handlers = java.util.logging.FileHandler\n" +
 //                                "java.util.logging.FileHandler.level     = ALL\n" +
 //                                "java.util.logging.FileHandler.formatter = java.util.logging.SimpleFormatter\n" +
@@ -964,7 +965,8 @@ class CompilerDaemonTest : KotlinIntegrationTestBase() {
                     e
                 }
 
-                println("${(exception ?: Exception())::class.java.simpleName} : ${exception?.message}")
+                val kClass: KClass<out Any> = (exception ?: Exception())::class
+                println("${kClass.java.simpleName} : ${exception?.message}")
                 assertNotNull(exception)
             }
         }

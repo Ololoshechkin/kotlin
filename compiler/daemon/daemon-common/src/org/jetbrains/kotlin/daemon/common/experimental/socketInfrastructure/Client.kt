@@ -37,7 +37,7 @@ abstract class DefaultAuthorizableClient<ServerType : ServerBase>(
 ) : Client<ServerType> {
 
     val log: Logger
-        get() = Logger.getLogger("default client($serverPort)")//.also { it.setUseParentHandlers(false); }
+        @Transient get() = Logger.getLogger("default client($serverPort)")//.also { it.setUseParentHandlers(false); }
 
     @kotlin.jvm.Transient
     lateinit var input: ByteReadChannelWrapper

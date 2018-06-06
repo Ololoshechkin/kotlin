@@ -61,7 +61,6 @@ fun walkDaemons(
     val portExtractor = makePortFromRunFilenameExtractor(classPathDigest)
     return registryDir.walk()
         .map { Pair(it, portExtractor(it.name)) }
-        .also { println("daemons (in file registry) :"); it.forEach { println("Pair(${it.first}, ${it.second})") } }
         .filter { (file, port) -> port != null && filter(file, port) }
         .mapNotNull { (file, port) ->
             assert(port!! in 1..(MAX_PORT_NUMBER - 1))
