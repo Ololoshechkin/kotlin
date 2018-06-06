@@ -15,7 +15,7 @@ import org.jetbrains.kotlin.cli.common.messages.OutputMessageUtil
 import org.jetbrains.kotlin.cli.jvm.K2JVMCompiler
 import org.jetbrains.kotlin.config.Services
 import org.jetbrains.kotlin.daemon.client.DaemonReportingTargets
-import org.jetbrains.kotlin.daemon.client.experimental.new.KotlinCompilerClient
+import org.jetbrains.kotlin.daemon.client.experimental.KotlinCompilerClient
 import org.jetbrains.kotlin.daemon.common.*
 import org.jetbrains.kotlin.daemon.loggerCompatiblePath
 import org.jetbrains.kotlin.integration.KotlinIntegrationTestBase

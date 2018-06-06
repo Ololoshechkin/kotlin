@@ -3,7 +3,7 @@
  * that can be found in the license/LICENSE.txt file.
  */
 
-package org.jetbrains.kotlin.daemon.client.experimental.new
+package org.jetbrains.kotlin.daemon.client.experimental
 
 import org.jetbrains.kotlin.daemon.client.DaemonReportingTargets
 import org.jetbrains.kotlin.daemon.client.NativePlatformLauncherWrapper

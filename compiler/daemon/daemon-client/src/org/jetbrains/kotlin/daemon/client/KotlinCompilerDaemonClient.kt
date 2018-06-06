@@ -3,11 +3,10 @@
  * that can be found in the license/LICENSE.txt file.
  */
 
-package org.jetbrains.kotlin.daemon.client.experimental.common
+package org.jetbrains.kotlin.daemon.client
 
 import org.jetbrains.kotlin.cli.common.messages.MessageCollector
-import org.jetbrains.kotlin.daemon.client.DaemonReportingTargets
-import org.jetbrains.kotlin.daemon.client.experimental.new.CompileServiceSession
+import org.jetbrains.kotlin.daemon.client.experimental.CompileServiceSession
 import org.jetbrains.kotlin.daemon.common.*
 import org.jetbrains.kotlin.daemon.common.experimental.CompilationResultsServerSide
 import org.jetbrains.kotlin.daemon.common.experimental.CompileServiceClientSide
@@ -71,10 +70,10 @@ interface KotlinCompilerDaemonClient {
         fun instantiate(version: Version): KotlinCompilerDaemonClient =
             when (version) {
                 Version.RMI -> {
-                    org.jetbrains.kotlin.daemon.client.experimental.new.KotlinCompilerClient
+                    org.jetbrains.kotlin.daemon.client.experimental.KotlinCompilerClient
                 }
                 Version.SOCKETS -> {
-                    org.jetbrains.kotlin.daemon.client.experimental.old.KotlinCompilerClient
+                    KotlinCompilerClient
                 }
             }
     }

@@ -3,7 +3,7 @@
  * that can be found in the license/LICENSE.txt file.
  */
 
-package org.jetbrains.kotlin.daemon.client.experimental.new
+package org.jetbrains.kotlin.daemon.client.experimental
 
 import io.ktor.network.sockets.Socket
 import kotlinx.coroutines.experimental.Deferred
@@ -14,7 +14,7 @@ import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
 import org.jetbrains.kotlin.cli.common.messages.MessageCollector
 import org.jetbrains.kotlin.daemon.client.DaemonReportMessage
 import org.jetbrains.kotlin.daemon.client.DaemonReportingTargets
-import org.jetbrains.kotlin.daemon.client.experimental.common.KotlinCompilerDaemonClient
+import org.jetbrains.kotlin.daemon.client.KotlinCompilerDaemonClient
 import org.jetbrains.kotlin.daemon.common.*
 import org.jetbrains.kotlin.daemon.common.experimental.*
 import org.jetbrains.kotlin.daemon.common.experimental.Profiler
@@ -551,7 +551,7 @@ object KotlinCompilerClient : KotlinCompilerDaemonClient {
                 } catch (e: Exception) {
                     reportingTargets.report(
                         DaemonReportCategory.INFO,
-                        "unable to interpret $COMPILE_DAEMON_STARTUP_TIMEOUT_PROPERTY property ('$it'); using default timeout ${DAEMON_DEFAULT_STARTUP_TIMEOUT_MS} ms"
+                        "unable to interpret $COMPILE_DAEMON_STARTUP_TIMEOUT_PROPERTY property ('$it'); using default timeout $DAEMON_DEFAULT_STARTUP_TIMEOUT_MS ms"
                     )
                     null
                 }
