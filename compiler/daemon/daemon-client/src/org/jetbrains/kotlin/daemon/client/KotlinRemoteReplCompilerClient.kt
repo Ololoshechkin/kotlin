@@ -11,12 +11,10 @@ import org.jetbrains.kotlin.cli.common.repl.ReplCheckResult
 import org.jetbrains.kotlin.cli.common.repl.ReplCodeLine
 import org.jetbrains.kotlin.cli.common.repl.ReplCompileResult
 import org.jetbrains.kotlin.cli.common.repl.experimental.ReplCompiler
-import org.jetbrains.kotlin.daemon.client.experimental.KotlinRemoteReplCompilerClientAsync
 import org.jetbrains.kotlin.daemon.client.impls.KotlinRemoteReplCompilerClientImpl
 import org.jetbrains.kotlin.daemon.common.CompileService
 import org.jetbrains.kotlin.daemon.common.CompileServiceClientSide
 import org.jetbrains.kotlin.daemon.common.SOCKET_ANY_FREE_PORT
-import org.jetbrains.kotlin.daemon.common.experimental.CompileServiceAsyncWrapper
 import org.jetbrains.kotlin.daemon.common.experimental.CompileServiceClientSideImpl
 import org.jetbrains.kotlin.daemon.common.experimental.toRMI
 import java.io.File
@@ -50,15 +48,30 @@ interface KotlinRemoteReplCompilerClient : ReplCompiler {
             port: Int = SOCKET_ANY_FREE_PORT
         ): KotlinRemoteReplCompilerClient =
             when (compileService) {
-                is CompileServiceClientSideImpl -> KotlinRemoteReplCompilerClientAsync(
-                    compileService,
-                    clientAliveFlagFile,
-                    targetPlatform,
-                    args,
-                    messageCollector,
-                    templateClasspath,
-                    templateClassName
-                )
+                is CompileServiceClientSideImpl ->
+                    ClassLoader
+                        .getSystemClassLoader()
+                        .loadClass("org.jetbrains.kotlin.daemon.client.experimental.KotlinRemoteReplCompilerClientAsync")
+                        .getDeclaredConstructor(
+                            CompileServiceClientSide::class.java,
+                            File::class.java,
+                            CompileService.TargetPlatform::class.java,
+                            Array<out String>::class.java,
+                            MessageCollector::class.java,
+                            List::class.java,
+                            String::class.java,
+                            Int::class.java
+                        )
+                        .newInstance(
+                            compileService,
+                            clientAliveFlagFile,
+                            targetPlatform,
+                            args,
+                            messageCollector,
+                            templateClasspath,
+                            templateClassName,
+                            port
+                        ) as KotlinRemoteReplCompilerClient
                 else -> KotlinRemoteReplCompilerWrapper(
                     KotlinRemoteReplCompilerClientImpl(
                         compileService.toRMI(),
@@ -72,5 +85,4 @@ interface KotlinRemoteReplCompilerClient : ReplCompiler {
                 )
             }
     }
-
 }

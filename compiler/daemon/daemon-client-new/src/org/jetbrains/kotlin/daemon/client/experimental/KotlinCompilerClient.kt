@@ -12,6 +12,7 @@ import kotlinx.coroutines.experimental.async
 import kotlinx.coroutines.experimental.runBlocking
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
 import org.jetbrains.kotlin.cli.common.messages.MessageCollector
+import org.jetbrains.kotlin.daemon.client.CompileServiceSession
 import org.jetbrains.kotlin.daemon.client.impls.DaemonReportMessage
 import org.jetbrains.kotlin.daemon.client.impls.DaemonReportingTargets
 import org.jetbrains.kotlin.daemon.client.KotlinCompilerDaemonClient
@@ -30,8 +31,6 @@ import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeUnit
 import java.util.logging.Logger
 import kotlin.concurrent.thread
-
-data class CompileServiceSession(val compileService: CompileServiceClientSide, val sessionId: Int)
 
 
 class KotlinCompilerClient : KotlinCompilerDaemonClient {
@@ -128,7 +127,7 @@ class KotlinCompilerClient : KotlinCompilerDaemonClient {
                     }
                     reportingTargets.report(DaemonReportCategory.DEBUG, "connected to the daemon")
                     if (!leaseSession)
-                        CompileServiceSession(this@leaseImpl, CompileService.NO_SESSION)
+                        org.jetbrains.kotlin.daemon.client.CompileServiceSession(this@leaseImpl, CompileService.NO_SESSION)
                     else
                         try {
                             leaseCompileSession(sessionAliveFlagFile?.absolutePath)
@@ -137,7 +136,7 @@ class KotlinCompilerClient : KotlinCompilerDaemonClient {
                         }
                             .takeUnless { it is CompileService.CallResult.Dying }
                             ?.let {
-                                CompileServiceSession(this@leaseImpl, it.get())
+                                org.jetbrains.kotlin.daemon.client.CompileServiceSession(this@leaseImpl, it.get())
                             }
                 }
 

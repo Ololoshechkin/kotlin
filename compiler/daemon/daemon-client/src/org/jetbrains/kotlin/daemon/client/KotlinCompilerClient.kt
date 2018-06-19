@@ -8,7 +8,6 @@ package org.jetbrains.kotlin.daemon.client
 import io.ktor.network.sockets.Socket
 import kotlinx.coroutines.experimental.runBlocking
 import org.jetbrains.kotlin.cli.common.messages.MessageCollector
-import org.jetbrains.kotlin.daemon.client.experimental.CompileServiceSession
 import org.jetbrains.kotlin.daemon.client.impls.DaemonReportingTargets
 import org.jetbrains.kotlin.daemon.common.*
 import org.jetbrains.kotlin.daemon.common.experimental.*
@@ -16,6 +15,11 @@ import org.jetbrains.kotlin.daemon.common.experimental.Profiler
 import org.jetbrains.kotlin.daemon.common.experimental.socketInfrastructure.Server
 import java.io.File
 import java.io.Serializable
+
+data class CompileServiceSession(val compileService: CompileServiceClientSide, val sessionId: Int)
+
+fun org.jetbrains.kotlin.daemon.client.impls.CompileServiceSession.toWrapper() =
+    CompileServiceSession(this.compileService.toClient(), this.sessionId)
 
 class KotlinCompilerClient : KotlinCompilerDaemonClient {
 
@@ -52,17 +56,6 @@ class KotlinCompilerClient : KotlinCompilerDaemonClient {
         reportingTargets,
         autostart
     )?.toClient()
-
-    private fun org.jetbrains.kotlin.daemon.client.impls.CompileServiceSession.toWrapper() =
-        CompileServiceSession(
-            this.compileService.toClient(),
-            this.sessionId
-        )
-
-    private fun CompileServiceSession.unwrap() = org.jetbrains.kotlin.daemon.client.impls.CompileServiceSession(
-        this.compileService.toRMI(),
-        this.sessionId
-    )
 
     override suspend fun connectAndLease(
         compilerId: CompilerId,

@@ -21,7 +21,7 @@ import org.jetbrains.kotlin.daemon.client.impls.report
 import org.jetbrains.kotlin.daemon.common.DaemonReportCategory
 import java.io.IOException
 
-internal class NativePlatformLauncherWrapper {
+class NativePlatformLauncherWrapper {
     private val nativeLauncher: net.rubygrapefruit.platform.ProcessLauncher by lazy {
         net.rubygrapefruit.platform.Native.get(net.rubygrapefruit.platform.ProcessLauncher::class.java)
     }

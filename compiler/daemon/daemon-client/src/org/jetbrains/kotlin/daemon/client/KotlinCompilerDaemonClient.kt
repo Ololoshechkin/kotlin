@@ -7,11 +7,9 @@ package org.jetbrains.kotlin.daemon.client
 
 import org.jetbrains.kotlin.cli.common.messages.MessageCollector
 import org.jetbrains.kotlin.daemon.client.KotlinCompilerDaemonClient.Companion.instantiate
-import org.jetbrains.kotlin.daemon.client.experimental.CompileServiceSession
 import org.jetbrains.kotlin.daemon.client.impls.DaemonReportingTargets
 import org.jetbrains.kotlin.daemon.common.*
 import org.jetbrains.kotlin.daemon.common.experimental.CompilationResultsServerSide
-import org.jetbrains.kotlin.daemon.common.CompileServiceClientSide
 import org.jetbrains.kotlin.daemon.common.experimental.DummyProfiler
 import org.jetbrains.kotlin.daemon.common.experimental.Profiler
 import java.io.File

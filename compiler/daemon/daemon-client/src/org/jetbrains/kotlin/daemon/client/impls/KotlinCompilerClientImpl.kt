@@ -275,7 +275,7 @@ object KotlinCompilerClientImpl {
 
     private fun configureClientOptions(): ClientOptions =
         configureClientOptions(ClientOptions())
-    
+
     fun main(vararg args: String) {
         val compilerId = CompilerId()
         val daemonOptions = configureDaemonOptions()
