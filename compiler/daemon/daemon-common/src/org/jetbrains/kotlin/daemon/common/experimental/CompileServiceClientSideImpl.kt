@@ -83,10 +83,16 @@ class CompileServiceClientSideImpl(
         compilerArguments: Array<out String>,
         compilationOptions: CompilationOptions,
         servicesFacade: CompilerServicesFacadeBaseClientSide,
-        compilationResults: CompilationResultsClientSide
+        compilationResults: CompilationResultsClientSide?
     ): CompileService.CallResult<Int> {
         log.info("override fun compile(")
-        val id = sendMessage(CompileMessage(sessionId, compilerArguments, compilationOptions, servicesFacade, compilationResults))
+        val id = sendMessage(CompileMessage(
+            sessionId,
+            compilerArguments,
+            compilationOptions,
+            servicesFacade,
+            compilationResults
+        ))
         log.info("override fun compile(: id = $id")
         return readMessage(id)
     }
@@ -299,7 +305,7 @@ class CompileServiceClientSideImpl(
         val compilerArguments: Array<out String>,
         val compilationOptions: CompilationOptions,
         val servicesFacade: CompilerServicesFacadeBaseClientSide,
-        val compilationResults: CompilationResultsClientSide
+        val compilationResults: CompilationResultsClientSide?
     ) : Server.Message<CompileServiceServerSide>() {
         override suspend fun processImpl(server: CompileServiceServerSide, sendReply: (Any?) -> Unit) =
             sendReply(

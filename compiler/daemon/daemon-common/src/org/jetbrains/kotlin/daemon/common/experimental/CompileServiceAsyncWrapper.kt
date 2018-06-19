@@ -25,13 +25,13 @@ class CompileServiceAsyncWrapper(
         compilerArguments: Array<out String>,
         compilationOptions: CompilationOptions,
         servicesFacade: CompilerServicesFacadeBaseClientSide,
-        compilationResults: CompilationResultsClientSide
+        compilationResults: CompilationResultsClientSide?
     ) = rmiCompileService.compile(
         sessionId,
         compilerArguments,
         compilationOptions,
         servicesFacade.toRMI(),
-        compilationResults.toRMI()
+        compilationResults?.toRMI()
     )
 
     override suspend fun leaseReplSession(
@@ -191,7 +191,7 @@ class CompileServiceClientRMIWrapper(
             compilerArguments,
             compilationOptions,
             servicesFacade.toClient(),
-            compilationResults!!.toClient() // TODO
+            compilationResults?.toClient() // TODO
         )
     }
 

@@ -610,12 +610,13 @@ class CompilerDaemonTest : KotlinIntegrationTestBase() {
             "-D$COMPILE_DAEMON_VERBOSE_REPORT_PROPERTY",
             "-cp",
             daemonClientClassPath.joinToString(File.pathSeparator) { it.absolutePath },
-            KotlinCompilerClient::class.qualifiedName!!
+            KotlinCompilerClientInstance::class.qualifiedName!!
         ) +
                 daemonOptions.mappers.flatMap { it.toArgs(COMPILE_DAEMON_CMDLINE_OPTIONS_PREFIX) } +
                 compilerId.mappers.flatMap { it.toArgs(COMPILE_DAEMON_CMDLINE_OPTIONS_PREFIX) } +
                 File(getHelloAppBaseDir(), "hello.kt").absolutePath +
-                "-d" + jar
+                "-d" + jar +
+                KotlinCompilerClientInstance.RMI_FLAG
         try {
             var resOutput: String? = null
             var resCode: Int? = null

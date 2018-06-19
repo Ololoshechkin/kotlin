@@ -6,6 +6,7 @@
 package org.jetbrains.kotlin.daemon.client
 
 import org.jetbrains.kotlin.cli.common.messages.MessageCollector
+import org.jetbrains.kotlin.daemon.client.KotlinCompilerDaemonClient.Companion.instantiate
 import org.jetbrains.kotlin.daemon.client.experimental.CompileServiceSession
 import org.jetbrains.kotlin.daemon.client.impls.DaemonReportingTargets
 import org.jetbrains.kotlin.daemon.common.*
@@ -75,13 +76,13 @@ interface KotlinCompilerDaemonClient {
                 Version.RMI ->
                     ClassLoader
                         .getSystemClassLoader()
-                        .loadClass("org.jetbrains.kotlin.daemon.client.experimental.KotlinCompilerClient")
+                        .loadClass("org.jetbrains.kotlin.daemon.client.KotlinCompilerClient")
                         .newInstance() as KotlinCompilerDaemonClient
 
                 Version.SOCKETS ->
                     ClassLoader
                         .getSystemClassLoader()
-                        .loadClass("org.jetbrains.kotlin.daemon.client.KotlinCompilerClient")
+                        .loadClass("org.jetbrains.kotlin.daemon.client.experimental.KotlinCompilerClient")
                         .newInstance() as KotlinCompilerDaemonClient
             }
     }
@@ -90,21 +91,18 @@ interface KotlinCompilerDaemonClient {
 
 object KotlinCompilerClientInstance {
 
-    private const val RMI_FLAG = "-old"
-    private const val SOCKETS_FLAG = "-new"
+    const val RMI_FLAG = "-old"
+    const val SOCKETS_FLAG = "-new"
 
     @JvmStatic
     fun main(vararg args: String) {
-        val clientInstance: KotlinCompilerDaemonClient? = when (args[0]) {
-            RMI_FLAG ->
-                KotlinCompilerDaemonClient
-                    .instantiate(KotlinCompilerDaemonClient.Version.RMI)
+        val clientInstance: KotlinCompilerDaemonClient? = when (args.last()) {
             SOCKETS_FLAG ->
-                KotlinCompilerDaemonClient
-                    .instantiate(KotlinCompilerDaemonClient.Version.SOCKETS)
-            else -> null
+                instantiate(KotlinCompilerDaemonClient.Version.SOCKETS)
+            else ->
+                instantiate(KotlinCompilerDaemonClient.Version.RMI)
         }
-        clientInstance?.main(*args.sliceArray(1..args.size))
+        clientInstance?.main(*args.sliceArray(0..args.lastIndex))
     }
 
 }

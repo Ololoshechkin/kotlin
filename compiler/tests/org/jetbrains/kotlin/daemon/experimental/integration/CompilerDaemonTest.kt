@@ -16,6 +16,7 @@ import org.jetbrains.kotlin.cli.js.K2JSCompiler
 import org.jetbrains.kotlin.cli.jvm.K2JVMCompiler
 import org.jetbrains.kotlin.cli.metadata.K2MetadataCompiler
 import org.jetbrains.kotlin.daemon.*
+import org.jetbrains.kotlin.daemon.client.KotlinCompilerClientInstance
 import org.jetbrains.kotlin.daemon.client.impls.DaemonReportingTargets
 import org.jetbrains.kotlin.daemon.client.experimental.CompilerCallbackServicesFacadeServerServerSide
 import org.jetbrains.kotlin.daemon.client.KotlinCompilerDaemonClient
@@ -684,12 +685,13 @@ class CompilerDaemonTest : KotlinIntegrationTestBase() {
             "-D$COMPILE_DAEMON_VERBOSE_REPORT_PROPERTY",
             "-cp",
             daemonClientClassPath.joinToString(File.pathSeparator) { it.absolutePath },
-            kotlinCompilerClientInstance::class.qualifiedName!!
+            KotlinCompilerClientInstance::class.qualifiedName!!
         ) +
                 daemonOptions.mappers.flatMap { it.toArgs(COMPILE_DAEMON_CMDLINE_OPTIONS_PREFIX) } +
                 compilerId.mappers.flatMap { it.toArgs(COMPILE_DAEMON_CMDLINE_OPTIONS_PREFIX) } +
                 File(getHelloAppBaseDir(), "hello.kt").absolutePath +
-                "-d" + jar
+                "-d" + jar +
+                KotlinCompilerClientInstance.SOCKETS_FLAG
         try {
             var resOutput: String? = null
             var resCode: Int? = null

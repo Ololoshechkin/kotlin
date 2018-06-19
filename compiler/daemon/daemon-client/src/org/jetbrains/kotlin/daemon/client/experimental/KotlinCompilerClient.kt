@@ -36,6 +36,10 @@ data class CompileServiceSession(val compileService: CompileServiceClientSide, v
 
 class KotlinCompilerClient : KotlinCompilerDaemonClient {
 
+    init {
+        println("experimental KotlinCompilerClient is being instantiated")
+    }
+
     val DAEMON_DEFAULT_STARTUP_TIMEOUT_MS = 10000L
     val DAEMON_CONNECT_CYCLE_ATTEMPTS = 3
 
