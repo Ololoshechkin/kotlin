@@ -1207,7 +1207,7 @@ class CompilerDaemonTest : KotlinIntegrationTestBase() {
                     )
                     println("daemon : $daemon")
                     assertNotNull("failed to connect daemon", daemon)
-                    assertTrue("daemon is New", daemon !is CompileServiceAsyncWrapper)
+                    assertTrue("daemon is not New", daemon !is CompileServiceAsyncWrapper)
 
                     body(daemon!!)
                 }
